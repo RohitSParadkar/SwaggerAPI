@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>API Hub — Admin</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;color:#0f172a;font-size:14px}
+    .sidebar{position:fixed;top:0;left:0;width:220px;height:100vh;background:#0f172a;display:flex;flex-direction:column;z-index:10}
+    .main{margin-left:220px;min-height:100vh;display:flex;flex-direction:column}
+    .topbar{background:#fff;border-bottom:1px solid #e2e8f0;padding:0 1.5rem;height:54px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+    .sidebar-logo{padding:1.25rem 1rem;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+    .sidebar-logo .icon{width:32px;height:32px;background:#6366f1;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+    .sidebar-logo .text{color:#fff;font-weight:600;font-size:14px;line-height:1.2}
+    .sidebar-logo .sub{color:rgba(255,255,255,.4);font-size:10px}
+    .nav-section{padding:.75rem 0 .25rem .75rem;font-size:10px;font-weight:600;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.07em}
+    .nav-item{display:flex;align-items:center;gap:9px;padding:8px 12px;margin:1px 6px;border-radius:7px;cursor:pointer;color:rgba(255,255,255,.6);font-size:13px;transition:all .15s;text-decoration:none}
+    .nav-item:hover{background:rgba(255,255,255,.07);color:#fff}
+    .nav-item.active{background:#6366f1;color:#fff}
+    .nav-item .ic{width:16px;text-align:center;flex-shrink:0}
+    .sidebar-bottom{margin-top:auto;padding:.75rem;border-top:1px solid rgba(255,255,255,.08)}
+    .logout-btn{width:100%;padding:8px;background:rgba(255,255,255,.07);border:none;color:rgba(255,255,255,.6);border-radius:7px;cursor:pointer;font-size:13px;text-align:left;display:flex;align-items:center;gap:8px}
+    .logout-btn:hover{background:rgba(255,255,255,.12);color:#fff}
+    .content{padding:1.5rem;flex:1}
+    .page{display:none}.page.active{display:block}
+    .page-title{font-size:18px;font-weight:700;margin-bottom:.25rem}
+    .page-sub{font-size:13px;color:#64748b;margin-bottom:1.5rem}
+    .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+    .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px}
+    .card-title{font-weight:600;font-size:14px}
+    .stats-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:1.5rem}
+    .stat-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1rem 1.25rem}
+    .stat-num{font-size:28px;font-weight:700;color:#0f172a}.stat-label{font-size:12px;color:#64748b;margin-top:2px}
+    table{width:100%;border-collapse:collapse}
+    th{text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:8px 12px;border-bottom:1px solid #f1f5f9;background:#f8fafc;white-space:nowrap}
+    td{padding:9px 12px;border-bottom:1px solid #f8fafc;vertical-align:middle;font-size:13px}
+    tr:hover td{background:#fafbfc}
+    tr:last-child td{border-bottom:none}
+    .form-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1rem}
+    .form-group{flex:1;min-width:140px}
+    .form-group label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px}
+    input.inp,select.inp,textarea.inp{width:100%;padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;outline:none;background:#fff;color:#0f172a;transition:border-color .15s;font-family:inherit}
+    textarea.inp{resize:vertical;min-height:60px}
+    input.inp:focus,select.inp:focus,textarea.inp:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+    .btn{display:inline-flex;align-items:center;gap:5px;padding:7px 14px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid #d1d5db;background:#fff;color:#0f172a;transition:all .15s;white-space:nowrap}
+    .btn:hover{background:#f1f5f9}.btn-primary{background:#0f172a;color:#fff;border-color:#0f172a}.btn-primary:hover{background:#1e293b}
+    .btn-indigo{background:#6366f1;color:#fff;border-color:#6366f1}.btn-indigo:hover{background:#4f46e5}
+    .btn-danger{color:#dc2626;border-color:#fecaca}.btn-danger:hover{background:#fef2f2}
+    .btn-sm{padding:4px 10px;font-size:12px}
+    .badge{display:inline-block;font-size:11px;padding:2px 9px;border-radius:20px;font-weight:500}
+    .badge-admin{background:#ede9fe;color:#5b21b6}.badge-entity{background:#dbeafe;color:#1d4ed8}
+    .badge-proj{background:#dcfce7;color:#15803d}.badge-ver{background:#fef9c3;color:#a16207}
+    .badge-fmt{background:#f0f9ff;color:#0369a1}
+    .tag-list{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
+    .tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:20px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;cursor:pointer;transition:all .15s}
+    .tag.selected{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}
+    .drop-zone{border:2px dashed #d1d5db;border-radius:8px;padding:1.5rem;text-align:center;cursor:pointer;transition:all .2s;background:#fafafa}
+    .drop-zone:hover,.drop-zone.drag{border-color:#6366f1;background:#eef2ff}
+    .drop-zone strong{font-size:13px;font-weight:600;display:block;margin-top:4px}
+    .drop-zone p{font-size:12px;color:#94a3b8;margin-top:3px}
+    .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#0f172a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:999;max-width:340px}
+    .toast.show{opacity:1}.toast.err{background:#dc2626}
+    .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;align-items:center;justify-content:center}
+    .modal-overlay.open{display:flex}
+    .modal{background:#fff;border-radius:14px;padding:1.5rem;width:100%;max-width:500px;max-height:88vh;overflow-y:auto}
+    .modal-title{font-size:16px;font-weight:700;margin-bottom:1rem}
+    .modal-footer{display:flex;justify-content:flex-end;gap:8px;margin-top:1rem;padding-top:1rem;border-top:1px solid #f1f5f9}
+    .avatar{width:30px;height:30px;border-radius:50%;background:#ede9fe;color:#5b21b6;display:inline-flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;flex-shrink:0}
+    .empty-state{text-align:center;padding:2.5rem;color:#94a3b8;font-size:13px}
+    .success-bar{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:9px 14px;font-size:13px;color:#15803d;margin-top:8px}
+    .err-bar{background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:9px 14px;font-size:13px;color:#dc2626;margin-top:8px}
+  </style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="icon">⚡</div>
+    <div><div class="text">API Hub</div><div class="sub">Admin Panel</div></div>
+  </div>
+  <div style="overflow-y:auto;flex:1">
+    <div class="nav-section">Overview</div>
+    <a class="nav-item active" onclick="showPage('dashboard',this)"><span class="ic">◉</span> Dashboard</a>
+    <div class="nav-section">Management</div>
+    <a class="nav-item" onclick="showPage('projects',this)"><span class="ic">📁</span> Projects</a>
+    <a class="nav-item" onclick="showPage('users',this)"><span class="ic">👥</span> Users</a>
+    <a class="nav-item" onclick="showPage('specs',this)"><span class="ic">📄</span> API Contracts</a>
+    <div class="nav-section">View</div>
+    <a class="nav-item" href="/docs" target="_blank"><span class="ic">🔗</span> Swagger UI</a>
+  </div>
+  <div class="sidebar-bottom">
+    <button class="logout-btn" onclick="logout()"><span>⬡</span> Logout</button>
+  </div>
+</aside>
+
+<div class="main">
+  <div class="topbar">
+    <span style="font-size:13px;color:#64748b">Welcome back, <strong id="adminName">admin</strong></span>
+    <span class="badge badge-admin">admin</span>
+  </div>
+  <div class="content">
+
+    <!-- DASHBOARD -->
+    <div class="page active" id="page-dashboard">
+      <div class="page-title">Dashboard</div>
+      <div class="page-sub">Overview of your API Hub</div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-num" id="stat-projects">–</div><div class="stat-label">Projects</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-users">–</div><div class="stat-label">Entity Users</div></div>
+        <div class="stat-card"><div class="stat-num" id="stat-specs">–</div><div class="stat-label">API Contracts</div></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">Recent projects</span><button class="btn btn-sm btn-primary" onclick="showPage('projects',null)">View all</button></div>
+        <div id="dash-projects"><div class="empty-state">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- PROJECTS -->
+    <div class="page" id="page-projects">
+      <div class="page-title">Projects</div>
+      <div class="page-sub">Organise API contracts by project</div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">All projects</span><button class="btn btn-indigo" onclick="openProjectModal()">+ New project</button></div>
+        <div id="projects-table"><div class="empty-state">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- USERS -->
+    <div class="page" id="page-users">
+      <div class="page-title">Users</div>
+      <div class="page-sub">Create entity accounts and assign project access</div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">All users</span><button class="btn btn-indigo" onclick="openUserModal()">+ New user</button></div>
+        <div id="users-table"><div class="empty-state">Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- SPECS -->
+    <div class="page" id="page-specs">
+      <div class="page-title">API Contracts</div>
+      <div class="page-sub">Upload and manage OpenAPI (YAML/JSON) or Postman collections — with versioning</div>
+
+      <div class="card">
+        <div class="card-header" style="align-items:flex-start;flex-direction:column;gap:10px">
+          <span class="card-title">Upload API contract</span>
+          <div class="form-row" style="width:100%;margin-bottom:0">
+            <div class="form-group">
+              <label>Project *</label>
+              <select class="inp" id="specProjectSelect"><option value="">— choose a project —</option></select>
+            </div>
+            <div class="form-group" style="max-width:130px">
+              <label>Version</label>
+              <input class="inp" id="specVersion" value="1.0.0" placeholder="e.g. 1.0.0">
+            </div>
+            <div class="form-group">
+              <label>Notes (optional)</label>
+              <input class="inp" id="specNotes" placeholder="e.g. Initial release">
+            </div>
+          </div>
+        </div>
+        <div class="drop-zone" id="specDrop" onclick="document.getElementById('specFiles').click()"
+             ondragover="dv(event,true)" ondragleave="dv(event,false)" ondrop="specDrop(event)">
+          <div style="font-size:26px">⬆</div>
+          <strong>Drop YAML / JSON / Postman files here</strong>
+          <p>Any extension accepted — Postman collections are auto-converted to OpenAPI 3.0</p>
+        </div>
+        <input type="file" id="specFiles" accept=".yaml,.yml,.json,.postman_collection,.postman_collection_v1,.postman_collection_v2" multiple style="display:none" onchange="uploadSpecs(this.files)">
+        <div id="uploadFeedback"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">All uploaded contracts</span>
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <select class="inp" id="filterProject" onchange="filterSpecs()" style="width:170px">
+              <option value="">All projects</option>
+            </select>
+            <select class="inp" id="filterUploader" onchange="filterSpecs()" style="width:150px">
+              <option value="">All uploaders</option>
+            </select>
+            <button class="btn" onclick="loadAllSpecs()">&#8635; Refresh</button>
+          </div>
+        </div>
+        <div id="specs-table"><div class="empty-state">Loading…</div></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PROJECT MODAL -->
+<div class="modal-overlay" id="projectModal">
+  <div class="modal">
+    <div class="modal-title">New project</div>
+    <div class="form-group" style="margin-bottom:1rem">
+      <label>Project name</label>
+      <input class="inp" id="projName" placeholder="e.g. E-Commerce Platform">
+    </div>
+    <div class="form-group" style="margin-bottom:1rem">
+      <label>Description</label>
+      <input class="inp" id="projDesc" placeholder="What APIs does this project expose?">
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('projectModal')">Cancel</button>
+      <button class="btn btn-indigo" onclick="saveProject()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- USER MODAL -->
+<div class="modal-overlay" id="userModal">
+  <div class="modal">
+    <div class="modal-title" id="userModalTitle">New user</div>
+    <div class="form-row">
+      <div class="form-group"><label>Username</label><input class="inp" id="uName" placeholder="e.g. partner_a"></div>
+      <div class="form-group"><label>Password</label><input class="inp" id="uPass" type="password" placeholder="Min 6 chars"></div>
+    </div>
+    <div class="form-group" style="margin-bottom:1rem">
+      <label>Role</label>
+      <select class="inp" id="uRole">
+        <option value="entity">Entity (restricted access)</option>
+        <option value="admin">Admin (full access)</option>
+      </select>
+    </div>
+    <div class="form-group" style="margin-bottom:1rem">
+      <label>Assign to projects</label>
+      <div class="tag-list" id="projectTagList"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('userModal')">Cancel</button>
+      <button class="btn btn-indigo" onclick="saveUser()">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT USER MODAL -->
+<div class="modal-overlay" id="editUserModal">
+  <div class="modal">
+    <div class="modal-title">Edit — <span id="editUserName"></span></div>
+    <div class="form-group" style="margin-bottom:1rem">
+      <label>New password (blank to keep current)</label>
+      <input class="inp" id="editPass" type="password" placeholder="Leave blank to keep">
+    </div>
+    <div class="form-group" style="margin-bottom:1rem">
+      <label>Assign to projects</label>
+      <div class="tag-list" id="editProjectTagList"></div>
+    </div>
+    <input type="hidden" id="editUserId">
+    <div class="modal-footer">
+      <button class="btn" onclick="closeModal('editUserModal')">Cancel</button>
+      <button class="btn btn-indigo" onclick="saveEditUser()">Update</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const token = () => localStorage.getItem('token');
+const getUser = () => { try{ return JSON.parse(localStorage.getItem('user')||'{}'); }catch{ return {}; } };
+if(!token()) window.location='/login.html';
+document.getElementById('adminName').textContent = getUser().username || 'admin';
+
+let allProjects=[], allUsers=[], allSpecsData=[];
+
+async function api(method,url,body){
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:body?JSON.stringify(body):undefined});
+  if(r.status===401){window.location='/login.html';return null;}
+  if(r.status===204) return null;
+  const d=await r.json();
+  if(!r.ok) throw d.detail||JSON.stringify(d);
+  return d;
+}
+
+function toast(msg,err=false){
+  const el=document.getElementById('toast'); el.textContent=msg;
+  el.className='toast show'+(err?' err':'');
+  setTimeout(()=>el.classList.remove('show'),3500);
+}
+
+function showPage(name,btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(name==='dashboard') loadDashboard();
+  if(name==='projects')  loadProjects();
+  if(name==='users')     loadUsers();
+  if(name==='specs')     loadSpecsPage();
+}
+
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+
+// ── Dashboard ──────────────────────────────────────────────────────────────
+async function loadDashboard(){
+  const [projs,users]=await Promise.all([api('GET','/api/admin/projects'),api('GET','/api/admin/users')]);
+  allProjects=projs||[]; allUsers=users||[];
+  document.getElementById('stat-projects').textContent=allProjects.length;
+  document.getElementById('stat-users').textContent=allUsers.filter(u=>u.role!=='admin').length;
+  document.getElementById('stat-specs').textContent=allProjects.reduce((n,p)=>n+(p.spec_count||0),0);
+  const el=document.getElementById('dash-projects');
+  if(!allProjects.length){el.innerHTML='<div class="empty-state">No projects yet</div>';return;}
+  el.innerHTML=`<table><thead><tr><th>Project</th><th>Specs</th><th>Created</th></tr></thead><tbody>
+    ${allProjects.slice(0,6).map(p=>`<tr>
+      <td><strong>${p.name}</strong><br><span style="font-size:11px;color:#94a3b8">${p.description||''}</span></td>
+      <td><span class="badge badge-proj">${p.spec_count||0}</span></td>
+      <td style="font-size:12px;color:#64748b">${new Date(p.created_at).toLocaleDateString()}</td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+// ── Projects ───────────────────────────────────────────────────────────────
+async function loadProjects(){
+  allProjects=await api('GET','/api/admin/projects')||[];
+  const el=document.getElementById('projects-table');
+  if(!allProjects.length){el.innerHTML='<div class="empty-state">No projects yet. Create one!</div>';return;}
+  el.innerHTML=`<table><thead><tr><th>Name</th><th>Description</th><th>Contracts</th><th>Created</th><th></th></tr></thead><tbody>
+    ${allProjects.map(p=>`<tr>
+      <td><strong>${p.name}</strong></td>
+      <td style="color:#64748b">${p.description||'—'}</td>
+      <td><span class="badge badge-proj">${p.spec_count||0}</span></td>
+      <td style="font-size:12px;color:#94a3b8">${new Date(p.created_at).toLocaleDateString()}</td>
+      <td><button class="btn btn-sm btn-danger" onclick="deleteProject('${p.id}','${p.name}')">Delete</button></td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function openProjectModal(){
+  document.getElementById('projName').value='';
+  document.getElementById('projDesc').value='';
+  document.getElementById('projectModal').classList.add('open');
+}
+
+async function saveProject(){
+  const name=document.getElementById('projName').value.trim();
+  const desc=document.getElementById('projDesc').value.trim();
+  if(!name){toast('Project name required',true);return;}
+  try{
+    await api('POST','/api/admin/projects',{name,description:desc});
+    closeModal('projectModal'); toast('Project created'); loadProjects(); loadSpecsPage();
+  }catch(e){toast(e,true);}
+}
+
+async function deleteProject(id,name){
+  if(!confirm(`Delete project "${name}" and all its contracts?`)) return;
+  try{await api('DELETE',`/api/admin/projects/${id}`);toast('Project deleted');loadProjects();}
+  catch(e){toast(e,true);}
+}
+
+// ── Users ──────────────────────────────────────────────────────────────────
+async function loadUsers(){
+  allUsers=await api('GET','/api/admin/users')||[];
+  const el=document.getElementById('users-table');
+  if(!allUsers.length){el.innerHTML='<div class="empty-state">No users yet.</div>';return;}
+  el.innerHTML=`<table><thead><tr><th>User</th><th>Role</th><th>Projects</th><th>Created</th><th></th></tr></thead><tbody>
+    ${allUsers.map(u=>`<tr>
+      <td><div style="display:flex;align-items:center;gap:8px"><div class="avatar">${u.username.slice(0,2).toUpperCase()}</div><strong>${u.username}</strong></div></td>
+      <td><span class="badge badge-${u.role}">${u.role}</span></td>
+      <td style="font-size:12px">
+        ${u.role==='admin'?'<span class="badge badge-admin">all</span>':
+          (u.projects||[]).map(pid=>{const p=allProjects.find(x=>x.id===pid);return p?`<span class="badge badge-proj" style="margin:1px">${p.name}</span>`:''}).join('')||'<span style="color:#94a3b8">none</span>'}
+      </td>
+      <td style="font-size:12px;color:#94a3b8">${new Date(u.created_at).toLocaleDateString()}</td>
+      <td style="display:flex;gap:4px">
+        <button class="btn btn-sm" onclick='openEditUser(${JSON.stringify(u)})'>Edit</button>
+        ${u.role!=='admin'?`<button class="btn btn-sm btn-danger" onclick="deleteUser('${u.id}','${u.username}')">Delete</button>`:''}
+      </td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function openUserModal(){
+  document.getElementById('uName').value='';
+  document.getElementById('uPass').value='';
+  document.getElementById('uRole').value='entity';
+  document.getElementById('userModalTitle').textContent='New user';
+  buildTagList('projectTagList',[]);
+  document.getElementById('userModal').classList.add('open');
+}
+
+function buildTagList(cid,sel){
+  document.getElementById(cid).innerHTML=allProjects.map(p=>
+    `<span class="tag ${sel.includes(p.id)?'selected':''}" data-pid="${p.id}" onclick="this.classList.toggle('selected')">${p.name}</span>`
+  ).join('');
+}
+
+function getSelectedTags(cid){
+  return [...document.querySelectorAll(`#${cid} .tag.selected`)].map(el=>el.dataset.pid).filter(Boolean);
+}
+
+async function saveUser(){
+  const username=document.getElementById('uName').value.trim();
+  const password=document.getElementById('uPass').value;
+  const role=document.getElementById('uRole').value;
+  const projects=getSelectedTags('projectTagList');
+  if(!username||!password){toast('Username and password required',true);return;}
+  try{
+    await api('POST','/api/admin/users',{username,password,role,projects});
+    closeModal('userModal'); toast(`User "${username}" created`); loadUsers();
+  }catch(e){toast(e,true);}
+}
+
+function openEditUser(u){
+  document.getElementById('editUserName').textContent=u.username;
+  document.getElementById('editUserId').value=u.id;
+  document.getElementById('editPass').value='';
+  buildTagList('editProjectTagList',u.projects||[]);
+  document.getElementById('editUserModal').classList.add('open');
+}
+
+async function saveEditUser(){
+  const uid=document.getElementById('editUserId').value;
+  const pass=document.getElementById('editPass').value;
+  const projects=getSelectedTags('editProjectTagList');
+  const body={projects};
+  if(pass) body.password=pass;
+  try{await api('PATCH',`/api/admin/users/${uid}`,body);closeModal('editUserModal');toast('User updated');loadUsers();}
+  catch(e){toast(e,true);}
+}
+
+async function deleteUser(id,name){
+  if(!confirm(`Delete user "${name}"?`)) return;
+  try{await api('DELETE',`/api/admin/users/${id}`);toast('User deleted');loadUsers();}
+  catch(e){toast(e,true);}
+}
+
+// ── Specs ──────────────────────────────────────────────────────────────────
+async function loadSpecsPage(){
+  allProjects=await api('GET','/api/admin/projects')||[];
+  const sel=document.getElementById('specProjectSelect');
+  const cur=sel.value;
+  sel.innerHTML='<option value="">— choose a project —</option>';
+  allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});
+  if(cur) sel.value=cur;
+  await loadAllSpecs();
+}
+
+async function loadAllSpecs(){
+  allSpecsData=await api('GET','/api/admin/all-specs')||[];
+  const projSel=document.getElementById('filterProject');
+  const curP=projSel.value;
+  projSel.innerHTML='<option value="">All projects</option>';
+  [...new Set(allSpecsData.map(s=>s.project_id))].forEach(pid=>{
+    const s=allSpecsData.find(x=>x.project_id===pid);
+    const o=document.createElement('option');o.value=pid;o.textContent=s.project_name;projSel.appendChild(o);
+  });
+  if(curP) projSel.value=curP;
+  const uplSel=document.getElementById('filterUploader');
+  const curU=uplSel.value;
+  uplSel.innerHTML='<option value="">All uploaders</option>';
+  [...new Set(allSpecsData.map(s=>s.uploaded_by))].forEach(u=>{
+    const o=document.createElement('option');o.value=u;o.textContent=u;uplSel.appendChild(o);
+  });
+  if(curU) uplSel.value=curU;
+  filterSpecs();
+}
+
+function filterSpecs(){
+  const pf=document.getElementById('filterProject').value;
+  const uf=document.getElementById('filterUploader').value;
+  const filtered=allSpecsData.filter(s=>(!pf||s.project_id===pf)&&(!uf||s.uploaded_by===uf));
+  renderSpecsTable(filtered);
+}
+
+function renderSpecsTable(specs){
+  const el=document.getElementById('specs-table');
+  if(!specs.length){el.innerHTML='<div class="empty-state">No contracts found.</div>';return;}
+  el.innerHTML=`<table><thead><tr>
+    <th>Filename</th><th>Project</th><th>Version</th><th>Format</th><th>Uploaded by</th><th>Uploaded at</th><th>Notes</th><th>Size</th><th>Actions</th>
+  </tr></thead><tbody>
+    ${specs.map(s=>`<tr>
+      <td><strong>${s.filename}</strong>${s.filename.includes('_converted')?'<br><span style="font-size:10px;background:#fef9c3;color:#a16207;padding:1px 6px;border-radius:10px">converted</span>':''}</td>
+      <td><span class="badge badge-proj">${s.project_name}</span></td>
+      <td><span class="badge badge-ver">${s.version||'1.0.0'}</span></td>
+      <td><span class="badge badge-fmt">${(s.format||'yaml').toUpperCase()}</span></td>
+      <td><span style="font-size:12px;background:${s.uploaded_by==='admin'?'#ede9fe;color:#5b21b6':'#dbeafe;color:#1d4ed8'};padding:2px 8px;border-radius:10px;font-weight:500">${s.uploaded_by}</span></td>
+      <td style="font-size:12px;color:#64748b;white-space:nowrap">${new Date(s.uploaded_at).toLocaleString()}</td>
+      <td style="font-size:12px;color:#94a3b8;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.notes||'—'}</td>
+      <td style="font-size:12px;color:#94a3b8;white-space:nowrap">${s.size<1024?s.size+'B':Math.round(s.size/1024)+'KB'}</td>
+      <td style="white-space:nowrap;display:flex;gap:4px">
+        <a href="/api/admin/projects/${s.project_id}/specs/${s.filename}?token=${token()}" target="_blank" class="btn btn-sm">View</a>
+        <button class="btn btn-sm btn-danger" onclick="deleteSpec('${s.project_id}','${s.filename}')">Delete</button>
+      </td>
+    </tr>`).join('')}</tbody></table>`;
+}
+
+function dv(e,on){e.preventDefault();document.getElementById('specDrop').classList.toggle('drag',on);}
+function specDrop(e){e.preventDefault();document.getElementById('specDrop').classList.remove('drag');uploadSpecs(e.dataTransfer.files);}
+
+async function uploadSpecs(files){
+  const pid=document.getElementById('specProjectSelect').value;
+  const version=document.getElementById('specVersion').value||'1.0.0';
+  const notes=document.getElementById('specNotes').value||'';
+  const fb=document.getElementById('uploadFeedback');
+  if(!pid){toast('Select a project first',true);return;}
+  const fd=new FormData();
+  Array.from(files).forEach(f=>fd.append('files',f));
+  fd.append('version',version);
+  fd.append('notes',notes);
+  fb.innerHTML='<div style="color:#6366f1;font-size:13px;padding:8px 0">Uploading…</div>';
+  try{
+    const r=await fetch(`/api/admin/projects/${pid}/specs`,{method:'POST',headers:{'Authorization':'Bearer '+token()},body:fd});
+    const d=await r.json();
+    if(!r.ok) throw d.detail||JSON.stringify(d);
+    fb.innerHTML=`<div class="success-bar">Uploaded: ${d.uploaded.map(u=>`<strong>${u.filename}</strong> <span class="badge badge-ver">${u.version}</span>`).join(', ')}</div>`;
+    setTimeout(()=>fb.innerHTML='',5000);
+    toast(`${d.uploaded.length} file(s) uploaded`); loadAllSpecs();
+  }catch(e){fb.innerHTML=`<div class="err-bar">${e}</div>`;toast(String(e),true);}
+}
+
+async function deleteSpec(pid,filename){
+  if(!confirm(`Delete ${filename}?`)) return;
+  try{await api('DELETE',`/api/admin/projects/${pid}/specs/${filename}`);toast('Deleted');loadAllSpecs();}
+  catch(e){toast(e,true);}
+}
+
+async function logout(){
+  await fetch('/api/auth/logout',{method:'POST'});
+  localStorage.clear(); window.location='/login.html';
+}
+
+// init
+loadDashboard(); loadProjects().then(()=>loadUsers());
+</script>
+</body>
+</html>

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>API Hub — My Projects</title>
+  <style>
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;color:#0f172a;font-size:14px}
+    .topbar{background:#0f172a;color:#fff;padding:0 1.5rem;height:54px;display:flex;align-items:center;gap:12px}
+    .topbar h1{font-size:15px;font-weight:600}
+    .topbar .sub{font-size:12px;opacity:.5;margin-left:4px}
+    .btn-logout{margin-left:auto;background:rgba(255,255,255,.1);border:none;color:#fff;padding:6px 13px;border-radius:6px;cursor:pointer;font-size:12px}
+    .wrap{max-width:960px;margin:1.5rem auto;padding:0 1rem}
+    .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
+    .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+    .card-title{font-weight:600;font-size:14px}
+    .proj-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px}
+    .proj-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;cursor:pointer;transition:all .15s}
+    .proj-card:hover{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.08)}
+    .proj-card.selected{border-color:#6366f1;background:#faf5ff}
+    .proj-icon{width:40px;height:40px;border-radius:10px;background:#ede9fe;display:flex;align-items:center;justify-content:center;font-size:18px;margin-bottom:.75rem}
+    .proj-name{font-weight:600;font-size:14px;margin-bottom:4px}
+    .proj-desc{font-size:12px;color:#64748b;line-height:1.5}
+    .badge{display:inline-block;font-size:11px;padding:2px 8px;border-radius:20px;font-weight:500}
+    .badge-count{background:#f1f5f9;color:#475569;margin-top:8px}
+    table{width:100%;border-collapse:collapse}
+    th{text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:8px 12px;border-bottom:1px solid #f1f5f9;background:#f8fafc}
+    td{padding:10px 12px;border-bottom:1px solid #f8fafc;vertical-align:middle}
+    tr:last-child td{border-bottom:none}
+    .btn{display:inline-flex;align-items:center;gap:5px;padding:6px 12px;border-radius:7px;font-size:12px;font-weight:500;cursor:pointer;border:1px solid #d1d5db;background:#fff;color:#0f172a;transition:all .15s;text-decoration:none}
+    .btn:hover{background:#f1f5f9}
+    .btn-indigo{background:#6366f1;color:#fff;border-color:#6366f1}
+    .btn-indigo:hover{background:#4f46e5}
+    .drop-zone{border:2px dashed #d1d5db;border-radius:8px;padding:1.25rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:1rem}
+    .drop-zone:hover,.drop-zone.drag{border-color:#6366f1;background:#eef2ff}
+    .empty-state{text-align:center;padding:2rem;color:#94a3b8;font-size:13px}
+    .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#0f172a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}
+    .toast.show{opacity:1}
+    .toast.err{background:#dc2626}
+  </style>
+</head>
+<body>
+<div class="topbar">
+  <div style="font-size:18px">⚡</div>
+  <h1>API Hub <span class="sub">— My Projects</span></h1>
+  <a href="/docs" target="_blank" class="btn" style="margin-left:auto;color:#fff;border-color:rgba(255,255,255,.2);background:rgba(255,255,255,.1)">Open Swagger UI ↗</a>
+  <button class="btn-logout" onclick="logout()">Logout</button>
+</div>
+
+<div class="wrap">
+  <div id="proj-section">
+    <h2 style="font-size:16px;font-weight:700;margin-bottom:.25rem">My Projects</h2>
+    <p style="font-size:13px;color:#64748b;margin-bottom:1.25rem">Select a project to view or upload API contracts</p>
+    <div class="proj-grid" id="proj-grid"><div class="empty-state">Loading…</div></div>
+  </div>
+
+  <div id="spec-section" style="display:none;margin-top:1.5rem">
+    <div style="display:flex;align-items:center;gap:10px;margin-bottom:1.25rem">
+      <button class="btn" onclick="backToProjects()">← Back</button>
+      <h2 style="font-size:16px;font-weight:700" id="specProjectName">Project specs</h2>
+    </div>
+    <div class="card">
+      <div class="card-title" style="margin-bottom:.75rem">Upload API contracts</div>
+      <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()"
+           ondragover="dv(event,true)" ondragleave="dv(event,false)" ondrop="dd(event)">
+        <div style="font-size:22px">⬆</div>
+        <strong style="font-size:13px">Drop YAML / JSON / Postman Collection here</strong>
+        <p style="font-size:12px;color:#94a3b8;margin-top:3px">Postman collections are auto-converted to OpenAPI</p>
+      </div>
+      <input type="file" id="fi" accept=".yaml,.yml,.json" multiple style="display:none" onchange="uploadSpecs(this.files)">
+    </div>
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">API contracts</span>
+        <a id="viewDocsBtn" href="/docs" target="_blank" class="btn btn-indigo">View in Swagger UI ↗</a>
+      </div>
+      <div id="specs-table"><div class="empty-state">Loading…</div></div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const token = () => localStorage.getItem('token');
+if(!token()) window.location='/login.html';
+
+let currentProjectId = null;
+
+async function api(method, url, body){
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:body?JSON.stringify(body):undefined});
+  if(r.status===401){ window.location='/login.html'; return null; }
+  return r.ok?(r.status===204?null:r.json()):r.json().then(d=>Promise.reject(d.detail||'Error'));
+}
+
+function toast(msg,err=false){
+  const el=document.getElementById('toast'); el.textContent=msg;
+  el.className='toast show'+(err?' err':'');
+  setTimeout(()=>el.classList.remove('show'),3000);
+}
+
+async function loadProjects(){
+  const projs=await api('GET','/api/entity/projects')||[];
+  const el=document.getElementById('proj-grid');
+  if(!projs.length){ el.innerHTML='<div class="empty-state">No projects assigned yet.<br>Contact your administrator.</div>'; return; }
+  el.innerHTML=projs.map(p=>`<div class="proj-card" onclick="openProject('${p.id}','${p.name}')">
+    <div class="proj-icon">📁</div>
+    <div class="proj-name">${p.name}</div>
+    <div class="proj-desc">${p.description||'No description'}</div>
+    <div class="badge badge-count">${p.spec_count||0} specs</div>
+  </div>`).join('');
+}
+
+function openProject(pid, name){
+  currentProjectId=pid;
+  document.getElementById('specProjectName').textContent=name;
+  document.getElementById('proj-section').style.display='none';
+  document.getElementById('spec-section').style.display='block';
+  loadSpecs();
+}
+
+function backToProjects(){
+  currentProjectId=null;
+  document.getElementById('spec-section').style.display='none';
+  document.getElementById('proj-section').style.display='block';
+  loadProjects();
+}
+
+async function loadSpecs(){
+  const specs=await api('GET',`/api/entity/projects/${currentProjectId}/specs`)||[];
+  const el=document.getElementById('specs-table');
+  if(!specs.length){ el.innerHTML='<div class="empty-state">No specs yet. Upload above.</div>'; return; }
+  el.innerHTML=`<table><thead><tr><th>Filename</th><th>Size</th><th>Modified</th><th></th></tr></thead><tbody>
+    ${specs.map(s=>`<tr>
+      <td><strong>${s.filename}</strong></td>
+      <td style="font-size:12px;color:#64748b">${s.size<1024?s.size+'B':Math.round(s.size/1024)+'KB'}</td>
+      <td style="font-size:12px;color:#94a3b8">${new Date(s.modified).toLocaleString()}</td>
+      <td><a href="/api/entity/projects/${currentProjectId}/specs/${s.filename}?token=${token()}" target="_blank" class="btn">View JSON ↗</a></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+
+function dv(e,on){ e.preventDefault(); document.getElementById('dz').classList.toggle('drag',on); }
+function dd(e){ e.preventDefault(); document.getElementById('dz').classList.remove('drag'); uploadSpecs(e.dataTransfer.files); }
+
+async function uploadSpecs(files){
+  if(!currentProjectId){ toast('Select a project first',true); return; }
+  const fd=new FormData();
+  Array.from(files).forEach(f=>fd.append('files',f));
+  try{
+    const r=await fetch(`/api/entity/projects/${currentProjectId}/specs`,{method:'POST',headers:{'Authorization':'Bearer '+token()},body:fd});
+    const d=await r.json();
+    if(!r.ok) throw d.detail;
+    toast(`${d.uploaded.length} file(s) uploaded`); loadSpecs();
+  }catch(e){ toast(e||'Upload failed',true); }
+}
+
+async function logout(){
+  await fetch('/api/auth/logout',{method:'POST'});
+  localStorage.clear(); window.location='/login.html';
+}
+
+loadProjects();
+</script>
+</body>
+</html>
