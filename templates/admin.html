@@ -173,10 +173,16 @@
         <div class="card-header">
           <span class="card-title">All uploaded contracts</span>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <select class="inp" id="filterProject" onchange="filterSpecs()" style="width:170px">
+            <select class="inp" id="filterProject" onchange="filterSpecs()" style="width:160px">
               <option value="">All projects</option>
             </select>
-            <select class="inp" id="filterUploader" onchange="filterSpecs()" style="width:150px">
+            <select class="inp" id="filterDocument" onchange="filterSpecs()" style="width:160px">
+              <option value="">All documents</option>
+            </select>
+            <select class="inp" id="filterVersion" onchange="filterSpecs()" style="width:120px">
+              <option value="">All versions</option>
+            </select>
+            <select class="inp" id="filterUploader" onchange="filterSpecs()" style="width:140px">
               <option value="">All uploaders</option>
             </select>
             <button class="btn" onclick="loadAllSpecs()">&#8635; Refresh</button>
@@ -435,6 +441,8 @@ async function loadSpecsPage(){
 
 async function loadAllSpecs(){
   allSpecsData=await api('GET','/api/admin/all-specs')||[];
+
+  // Project filter
   const projSel=document.getElementById('filterProject');
   const curP=projSel.value;
   projSel.innerHTML='<option value="">All projects</option>';
@@ -443,6 +451,26 @@ async function loadAllSpecs(){
     const o=document.createElement('option');o.value=pid;o.textContent=s.project_name;projSel.appendChild(o);
   });
   if(curP) projSel.value=curP;
+
+  // Document (base_name) filter
+  const docSel=document.getElementById('filterDocument');
+  const curD=docSel.value;
+  docSel.innerHTML='<option value="">All documents</option>';
+  [...new Set(allSpecsData.map(s=>s.base_name||s.stem).filter(Boolean))].sort().forEach(b=>{
+    const o=document.createElement('option');o.value=b;o.textContent=b;docSel.appendChild(o);
+  });
+  if(curD) docSel.value=curD;
+
+  // Version number filter
+  const verSel=document.getElementById('filterVersion');
+  const curV=verSel.value;
+  verSel.innerHTML='<option value="">All versions</option>';
+  [...new Set(allSpecsData.map(s=>s.version_num||1))].sort((a,b)=>a-b).forEach(n=>{
+    const o=document.createElement('option');o.value=n;o.textContent=`v${n}`;verSel.appendChild(o);
+  });
+  if(curV) verSel.value=curV;
+
+  // Uploader filter
   const uplSel=document.getElementById('filterUploader');
   const curU=uplSel.value;
   uplSel.innerHTML='<option value="">All uploaders</option>';
@@ -450,13 +478,21 @@ async function loadAllSpecs(){
     const o=document.createElement('option');o.value=u;o.textContent=u;uplSel.appendChild(o);
   });
   if(curU) uplSel.value=curU;
+
   filterSpecs();
 }
 
 function filterSpecs(){
   const pf=document.getElementById('filterProject').value;
+  const df=document.getElementById('filterDocument').value;
+  const vf=document.getElementById('filterVersion').value;
   const uf=document.getElementById('filterUploader').value;
-  const filtered=allSpecsData.filter(s=>(!pf||s.project_id===pf)&&(!uf||s.uploaded_by===uf));
+  const filtered=allSpecsData.filter(s=>
+    (!pf||s.project_id===pf) &&
+    (!df||(s.base_name||s.stem)===df) &&
+    (!vf||String(s.version_num||1)===vf) &&
+    (!uf||s.uploaded_by===uf)
+  );
   renderSpecsTable(filtered);
 }
 
@@ -464,11 +500,16 @@ function renderSpecsTable(specs){
   const el=document.getElementById('specs-table');
   if(!specs.length){el.innerHTML='<div class="empty-state">No contracts found.</div>';return;}
   el.innerHTML=`<table><thead><tr>
-    <th>Filename</th><th>Project</th><th>Version</th><th>Format</th><th>Uploaded by</th><th>Uploaded at</th><th>Notes</th><th>Size</th><th>Actions</th>
+    <th>Document</th><th>Project</th><th>Seq#</th><th>Version</th><th>Format</th><th>Uploaded by</th><th>Uploaded at</th><th>Notes</th><th>Size</th><th>Actions</th>
   </tr></thead><tbody>
     ${specs.map(s=>`<tr>
-      <td><strong>${s.filename}</strong>${s.filename.includes('_converted')?'<br><span style="font-size:10px;background:#fef9c3;color:#a16207;padding:1px 6px;border-radius:10px">converted</span>':''}</td>
+      <td>
+        <strong>${s.base_name||s.stem}</strong>
+        <br><span style="font-size:11px;color:#94a3b8">${s.filename}</span>
+        ${s.filename.includes('_converted')?'<br><span style="font-size:10px;background:#fef9c3;color:#a16207;padding:1px 6px;border-radius:10px">converted</span>':''}
+      </td>
       <td><span class="badge badge-proj">${s.project_name}</span></td>
+      <td style="text-align:center"><span style="font-size:13px;font-weight:700;color:${(s.version_num||1)>1?'#6366f1':'#64748b'}">v${s.version_num||1}</span></td>
       <td><span class="badge badge-ver">${s.version||'1.0.0'}</span></td>
       <td><span class="badge badge-fmt">${(s.format||'yaml').toUpperCase()}</span></td>
       <td><span style="font-size:12px;background:${s.uploaded_by==='admin'?'#ede9fe;color:#5b21b6':'#dbeafe;color:#1d4ed8'};padding:2px 8px;border-radius:10px;font-weight:500">${s.uploaded_by}</span></td>

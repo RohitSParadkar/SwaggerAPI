@@ -58,11 +58,15 @@ def _process_file(content: bytes, fname: str) -> tuple:
         raise ValueError(f"Cannot parse '{fname}'")
 
 
+# ── Projects ──────────────────────────────────────────────────────────────────
+
 @router.get("/projects")
 def my_projects(current_user=Depends(get_current_user)):
     allowed = _allowed_projects(current_user)
     return [p for p in project_store.list_projects() if p["id"] in allowed]
 
+
+# ── Specs (flat list) ─────────────────────────────────────────────────────────
 
 @router.get("/projects/{project_id}/specs")
 def project_specs(project_id: str, current_user=Depends(get_current_user)):
@@ -72,6 +76,23 @@ def project_specs(project_id: str, current_user=Depends(get_current_user)):
         raise HTTPException(status_code=404, detail="Project not found")
     return project_store.list_specs(project_id)
 
+
+# ── Documents (grouped by base name, with versions list) ─────────────────────
+
+@router.get("/projects/{project_id}/documents")
+def project_documents(project_id: str, current_user=Depends(get_current_user)):
+    """
+    Returns specs grouped by document (base name).
+    Each entry has:  base_name, versions (list of spec objects), latest (spec object)
+    """
+    if project_id not in _allowed_projects(current_user):
+        raise HTTPException(status_code=403, detail="Access denied to this project")
+    if not project_store.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project_store.list_documents(project_id)
+
+
+# ── Single spec ───────────────────────────────────────────────────────────────
 
 @router.get("/projects/{project_id}/specs/{filename}")
 def get_spec(project_id: str, filename: str, current_user=Depends(get_current_user)):
@@ -83,11 +104,13 @@ def get_spec(project_id: str, filename: str, current_user=Depends(get_current_us
     return JSONResponse(content=spec)
 
 
+# ── Upload ────────────────────────────────────────────────────────────────────
+
 @router.post("/projects/{project_id}/specs")
 async def entity_upload_spec(
     project_id: str,
     files:   list[UploadFile] = File(...),
-    version: str = Form(default="1.0.0"),
+    version: str = Form(default=""),   # optional; if blank, auto-infer from version_num
     notes:   str = Form(default=""),
     current_user=Depends(get_current_user),
 ):
@@ -103,8 +126,18 @@ async def entity_upload_spec(
             fname, content = _process_file(content, fname)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
-        info = project_store.save_spec(project_id, fname, content,
-                                       uploaded_by=current_user.get("username", "entity"),
-                                       version=version, notes=notes)
+
+        # If the caller did not supply a version label, derive it from the
+        # auto-incremented version_num that save_spec will assign.
+        # We do a pre-check here to compute what version_num will be.
+        _, preview_num = project_store._next_versioned_filename(project_id, fname)
+        effective_version = version.strip() if version.strip() else f"{preview_num}.0.0"
+
+        info = project_store.save_spec(
+            project_id, fname, content,
+            uploaded_by=current_user.get("username", "entity"),
+            version=effective_version,
+            notes=notes,
+        )
         uploaded.append(info)
     return {"uploaded": uploaded}

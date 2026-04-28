@@ -108,7 +108,6 @@ def _process_file(content: bytes, fname: str) -> tuple:
     from pathlib import Path as _P
     ext = _P(fname).suffix.lower()
 
-    # Postman by content (any extension)
     if _is_postman(content):
         col     = json.loads(content)
         spec    = postman_converter.convert(col)
@@ -131,7 +130,6 @@ def _process_file(content: bytes, fname: str) -> tuple:
             raise ValueError(f"Invalid YAML: {e}")
         return fname, content
 
-    # Unknown extension — sniff content
     try:
         yaml.safe_load(content)
         return fname + ".yaml", content
@@ -150,7 +148,7 @@ def _process_file(content: bytes, fname: str) -> tuple:
 async def upload_spec(
     project_id: str,
     files:   list[UploadFile] = File(...),
-    version: str = Form(default="1.0.0"),
+    version: str = Form(default=""),   # optional — auto-derived if blank
     notes:   str = Form(default=""),
     admin=Depends(require_admin),
 ):
@@ -164,9 +162,14 @@ async def upload_spec(
             fname, content = _process_file(content, fname)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
+
+        _, preview_num = project_store._next_versioned_filename(project_id, fname)
+        effective_version = version.strip() if version.strip() else f"{preview_num}.0.0"
+
         info = project_store.save_spec(project_id, fname, content,
                                        uploaded_by=admin["username"],
-                                       version=version, notes=notes)
+                                       version=effective_version,
+                                       notes=notes)
         uploaded.append(info)
     return {"uploaded": uploaded}
 
@@ -176,6 +179,14 @@ def list_project_specs(project_id: str, admin=Depends(require_admin)):
     if not project_store.get_project(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
     return project_store.list_specs(project_id)
+
+
+@router.get("/projects/{project_id}/documents")
+def list_project_documents(project_id: str, admin=Depends(require_admin)):
+    """Grouped by base document name with all versions."""
+    if not project_store.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project_store.list_documents(project_id)
 
 
 @router.get("/all-specs")

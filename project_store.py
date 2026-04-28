@@ -3,10 +3,16 @@ Project store — each project lives in data/projects/<project_id>/
   meta.json        — project metadata
   specs_meta.json  — per-file upload info (uploader, version, notes)
   specs/           — uploaded OpenAPI YAML/JSON files
+
+Versioning: if a file with the same base name already exists, the new
+upload is saved as  <stem>_v<N>.<ext>  (e.g. openapi_v2.yaml).
+The specs_meta also tracks a `base_name` field so all versions of the
+same document can be grouped together.
 """
 import json
 import uuid
 import shutil
+import re
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -45,6 +51,48 @@ def _load_spec_meta(pid: str) -> dict:
 
 def _save_spec_meta(pid: str, meta: dict) -> None:
     _spec_meta_path(pid).write_text(json.dumps(meta, indent=2), encoding="utf-8")
+
+
+# ── Version helpers ───────────────────────────────────────────────────────────
+
+def _base_stem(stem: str) -> str:
+    """Strip _v<N> suffix to get the canonical document name."""
+    return re.sub(r"_v\d+$", "", stem)
+
+
+def _next_versioned_filename(pid: str, filename: str) -> tuple[str, int]:
+    """
+    Given an original filename, find the highest existing version of that
+    document in the project and return (new_filename, version_number).
+
+    Rules
+    -----
+    * First upload of a document  → keep original filename, version_num = 1
+    * Second upload (same name)   → <stem>_v2.<ext>, version_num = 2
+    * Third upload                → <stem>_v3.<ext>, etc.
+    """
+    from pathlib import Path as _P
+    stem = _P(filename).stem
+    ext  = _P(filename).suffix.lower()
+    base = _base_stem(stem)
+
+    sd = _specs_dir(pid)
+    existing_versions: list[int] = []
+
+    for f in sd.iterdir():
+        if f.suffix.lower() not in ALLOWED_EXTS:
+            continue
+        s = _base_stem(f.stem)
+        if s != base:
+            continue
+        # version 1 has no _vN suffix
+        m = re.search(r"_v(\d+)$", f.stem)
+        existing_versions.append(int(m.group(1)) if m else 1)
+
+    if not existing_versions:
+        return filename, 1          # brand-new document
+    next_ver = max(existing_versions) + 1
+    return f"{base}_v{next_ver}{ext}", next_ver
 
 
 # ── Projects CRUD ─────────────────────────────────────────────────────────────
@@ -103,7 +151,6 @@ def list_specs(pid: str) -> list[dict]:
     spec_meta = _load_spec_meta(pid)
     out = []
     for f in sorted(sd.iterdir()):
-        # accept any recognised extension
         if f.suffix.lower() not in ALLOWED_EXTS:
             continue
         if f.name == "specs_meta.json":
@@ -113,15 +160,37 @@ def list_specs(pid: str) -> list[dict]:
         out.append({
             "filename":    f.name,
             "stem":        f.stem,
+            "base_name":   _base_stem(f.stem),        # canonical document name
             "size":        s.st_size,
             "modified":    datetime.fromtimestamp(s.st_mtime).isoformat(),
             "uploaded_by": m.get("uploaded_by", "unknown"),
             "uploaded_at": m.get("uploaded_at", datetime.fromtimestamp(s.st_mtime).isoformat()),
             "version":     m.get("version", "1.0.0"),
+            "version_num": m.get("version_num", 1),   # integer sequence (1, 2, 3…)
             "notes":       m.get("notes", ""),
             "format":      f.suffix.lower().lstrip("."),
         })
     return out
+
+
+def list_documents(pid: str) -> list[dict]:
+    """
+    Return one entry per unique base document name, with a list of all
+    versions sorted ascending.  Useful for the cascading dropdowns.
+    """
+    specs = list_specs(pid)
+    docs: dict[str, list] = {}
+    for s in specs:
+        docs.setdefault(s["base_name"], []).append(s)
+    result = []
+    for base, versions in sorted(docs.items()):
+        versions_sorted = sorted(versions, key=lambda x: x["version_num"])
+        result.append({
+            "base_name": base,
+            "versions":  versions_sorted,
+            "latest":    versions_sorted[-1],
+        })
+    return result
 
 
 def save_spec(pid: str, filename: str, content: bytes,
@@ -130,26 +199,34 @@ def save_spec(pid: str, filename: str, content: bytes,
               notes: str = "") -> dict:
     if not _load_meta(pid):
         raise KeyError(f"Project {pid} not found")
-    dest = _specs_dir(pid) / filename
+
+    # Auto-version: if the base document already exists, bump the filename
+    final_filename, version_num = _next_versioned_filename(pid, filename)
+
+    dest = _specs_dir(pid) / final_filename
     dest.write_bytes(content)
     s = dest.stat()
     spec_meta = _load_spec_meta(pid)
     now = datetime.utcnow().isoformat()
-    spec_meta[filename] = {
+    spec_meta[final_filename] = {
         "uploaded_by": uploaded_by,
         "uploaded_at": now,
         "version":     version,
+        "version_num": version_num,
         "notes":       notes,
+        "original_filename": filename,   # keep track of what was submitted
     }
     _save_spec_meta(pid, spec_meta)
     return {
         "filename":    dest.name,
         "stem":        dest.stem,
+        "base_name":   _base_stem(dest.stem),
         "size":        s.st_size,
         "modified":    datetime.fromtimestamp(s.st_mtime).isoformat(),
         "uploaded_by": uploaded_by,
         "uploaded_at": now,
         "version":     version,
+        "version_num": version_num,
         "notes":       notes,
         "format":      dest.suffix.lower().lstrip("."),
     }
