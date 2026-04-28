@@ -53,6 +53,8 @@
     .badge-ver{background:#fef9c3;color:#a16207}
     .badge-fmt{background:#f0f9ff;color:#0369a1}
     .badge-new{background:#dcfce7;color:#15803d}
+    .badge-read{background:#dbeafe;color:#1d4ed8}
+    .badge-write{background:#dcfce7;color:#15803d}
 
     /* ── Empty / toast ── */
     .empty-state{text-align:center;padding:2rem;color:#94a3b8;font-size:13px}
@@ -109,12 +111,12 @@
   </div>
 
   <!-- ── UPLOAD ── -->
-  <div style="margin-top:1.5rem">
+  <div style="margin-top:1.5rem" id="upload-section" style="display:none">
     <div class="section-head">Upload API Contracts</div>
-    <p class="section-sub">Upload YAML / JSON / Postman collections for your assigned projects</p>
+    <p class="section-sub">You have <strong>write access</strong> to some projects — you can upload API contracts to those projects.</p>
   </div>
 
-  <div class="card">
+  <div class="card" id="upload-card" style="display:none">
     <div class="card-title">⬆ Upload to Project</div>
 
     <div class="dd-bar" style="margin-bottom:.75rem">
@@ -193,25 +195,42 @@ function toast(msg,err=false){
 // ── Init ─────────────────────────────────────────────────────────────────────
 async function init(){
   allProjects = await api('GET','/api/entity/projects') || [];
-  populateProjectDropdowns();
+  // allProjects now includes `permission` field: "read" or "write"
+  const writableProjects = allProjects.filter(p=>p.permission==='write');
+  const hasWrite = writableProjects.length > 0;
+
+  // Show upload section only if user has write access to at least one project
+  document.getElementById('upload-section').style.display = hasWrite ? '' : 'none';
+  document.getElementById('upload-card').style.display    = hasWrite ? '' : 'none';
+
+  populateProjectDropdowns(writableProjects);
   if(allProjects.length===1){
-    // auto-select the only project in both dropdowns
     document.getElementById('view-project').value = allProjects[0].id;
-    document.getElementById('up-project').value   = allProjects[0].id;
     onViewProjectChange();
+  }
+  if(writableProjects.length===1){
+    document.getElementById('up-project').value = writableProjects[0].id;
     onUploadProjectChange();
   }
 }
 
-function populateProjectDropdowns(){
-  ['view-project','up-project'].forEach(id=>{
-    const sel = document.getElementById(id);
-    sel.innerHTML = '<option value="">— select project —</option>';
-    allProjects.forEach(p=>{
-      const o=document.createElement('option');
-      o.value=p.id; o.textContent=p.name;
-      sel.appendChild(o);
-    });
+function populateProjectDropdowns(writableProjects){
+  // View dropdown — all accessible projects
+  const viewSel = document.getElementById('view-project');
+  viewSel.innerHTML = '<option value="">— select project —</option>';
+  allProjects.forEach(p=>{
+    const o=document.createElement('option');
+    o.value=p.id;
+    o.textContent=p.name + (p.permission==='write'?' ✏':'');
+    viewSel.appendChild(o);
+  });
+  // Upload dropdown — write-only projects
+  const upSel = document.getElementById('up-project');
+  upSel.innerHTML = '<option value="">— select project —</option>';
+  (writableProjects||[]).forEach(p=>{
+    const o=document.createElement('option');
+    o.value=p.id; o.textContent=p.name;
+    upSel.appendChild(o);
   });
 }
 
@@ -314,7 +333,7 @@ function onUploadProjectChange(){
   if(!pid){ hint.style.display='none'; return; }
   const proj = allProjects.find(p=>p.id===pid);
   hint.style.display='block';
-  hint.innerHTML=`Uploading to: <strong>${proj?proj.name:pid}</strong> — if a file with the same name already exists, a new version will be created automatically.`;
+  hint.innerHTML=`Uploading to: <strong>${proj?proj.name:pid}</strong> <span class="badge badge-write" style="font-size:11px;vertical-align:middle">write</span> — same filename → new version auto-created.`;
   loadSpecsTable(pid);
 }
 

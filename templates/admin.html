@@ -55,6 +55,24 @@
     .tag-list{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}
     .tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:20px;background:#f1f5f9;color:#475569;border:1px solid #e2e8f0;cursor:pointer;transition:all .15s}
     .tag.selected{background:#ede9fe;color:#5b21b6;border-color:#c4b5fd}
+    .perm-row{display:flex;align-items:center;justify-content:space-between;padding:7px 10px;border:1px solid #e2e8f0;border-radius:8px;margin-bottom:6px;background:#fff;gap:10px}
+    .perm-row:hover{background:#f8fafc}
+    .perm-name{font-size:13px;font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .perm-toggle{display:flex;border:1px solid #d1d5db;border-radius:6px;overflow:hidden;flex-shrink:0}
+    .perm-btn{padding:4px 10px;font-size:11px;font-weight:600;border:none;cursor:pointer;background:#fff;color:#64748b;transition:all .12s;line-height:1.4}
+    .perm-btn:hover{background:#f1f5f9}
+    .perm-btn.active-read{background:#dbeafe;color:#1d4ed8}
+    .perm-btn.active-write{background:#dcfce7;color:#15803d}
+    .badge-read{background:#dbeafe;color:#1d4ed8}
+    .badge-write{background:#dcfce7;color:#15803d}
+    .upload-panel{display:none;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-top:6px}
+    .upload-panel.open{display:block}
+    .upload-panel-head{background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:600;color:#374151;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between}
+    .upload-panel-body{padding:14px}
+    .panel-drop{border:2px dashed #d1d5db;border-radius:7px;padding:1rem;text-align:center;cursor:pointer;transition:all .2s;background:#fafafa;margin-bottom:.75rem}
+    .panel-drop:hover,.panel-drop.drag{border-color:#6366f1;background:#eef2ff}
+    .panel-drop strong{font-size:12px;display:block;margin-top:3px}
+    .panel-drop p{font-size:11px;color:#94a3b8;margin-top:2px}
     .drop-zone{border:2px dashed #d1d5db;border-radius:8px;padding:1.5rem;text-align:center;cursor:pointer;transition:all .2s;background:#fafafa}
     .drop-zone:hover,.drop-zone.drag{border-color:#6366f1;background:#eef2ff}
     .drop-zone strong{font-size:13px;font-weight:600;display:block;margin-top:4px}
@@ -216,7 +234,7 @@
 
 <!-- USER MODAL -->
 <div class="modal-overlay" id="userModal">
-  <div class="modal">
+  <div class="modal" style="max-width:560px">
     <div class="modal-title" id="userModalTitle">New user</div>
     <div class="form-row">
       <div class="form-group"><label>Username</label><input class="inp" id="uName" placeholder="e.g. partner_a"></div>
@@ -230,8 +248,9 @@
       </select>
     </div>
     <div class="form-group" style="margin-bottom:1rem">
-      <label>Assign to projects</label>
-      <div class="tag-list" id="projectTagList"></div>
+      <label style="margin-bottom:8px;display:block">Project access & permissions</label>
+      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px">Toggle <strong style="color:#1d4ed8">Read</strong> to allow viewing, <strong style="color:#15803d">Write</strong> to also allow uploading documents.</p>
+      <div id="projectPermList"></div>
     </div>
     <div class="modal-footer">
       <button class="btn" onclick="closeModal('userModal')">Cancel</button>
@@ -242,15 +261,16 @@
 
 <!-- EDIT USER MODAL -->
 <div class="modal-overlay" id="editUserModal">
-  <div class="modal">
+  <div class="modal" style="max-width:560px">
     <div class="modal-title">Edit — <span id="editUserName"></span></div>
     <div class="form-group" style="margin-bottom:1rem">
       <label>New password (blank to keep current)</label>
       <input class="inp" id="editPass" type="password" placeholder="Leave blank to keep">
     </div>
     <div class="form-group" style="margin-bottom:1rem">
-      <label>Assign to projects</label>
-      <div class="tag-list" id="editProjectTagList"></div>
+      <label style="margin-bottom:8px;display:block">Project access & permissions</label>
+      <p style="font-size:11px;color:#94a3b8;margin-bottom:8px">Toggle <strong style="color:#1d4ed8">Read</strong> to allow viewing, <strong style="color:#15803d">Write</strong> to also allow uploading documents.</p>
+      <div id="editProjectPermList"></div>
     </div>
     <input type="hidden" id="editUserId">
     <div class="modal-footer">
@@ -353,24 +373,85 @@ async function deleteProject(id,name){
 }
 
 // ── Users ──────────────────────────────────────────────────────────────────
+function renderUserProjectBadges(u){
+  const perms = u.project_permissions || {};
+  const pids  = Object.keys(perms);
+  if(!pids.length) return '<span style="color:#94a3b8">none</span>';
+  return pids.map(pid=>{
+    const p=allProjects.find(x=>x.id===pid);
+    if(!p) return '';
+    const perm=perms[pid]||'read';
+    return `<span class="badge badge-${perm}" style="margin:1px 2px">${p.name} · ${perm}</span>`;
+  }).join('');
+}
+
+function hasWriteAccess(u){
+  const perms = u.project_permissions || {};
+  return Object.values(perms).some(v=>v==='write');
+}
+
 async function loadUsers(){
   allUsers=await api('GET','/api/admin/users')||[];
   const el=document.getElementById('users-table');
   if(!allUsers.length){el.innerHTML='<div class="empty-state">No users yet.</div>';return;}
-  el.innerHTML=`<table><thead><tr><th>User</th><th>Role</th><th>Projects</th><th>Created</th><th></th></tr></thead><tbody>
+  el.innerHTML=`<table><thead><tr><th>User</th><th>Role</th><th>Projects & Permissions</th><th>Created</th><th>Actions</th></tr></thead><tbody>
     ${allUsers.map(u=>`<tr>
       <td><div style="display:flex;align-items:center;gap:8px"><div class="avatar">${u.username.slice(0,2).toUpperCase()}</div><strong>${u.username}</strong></div></td>
       <td><span class="badge badge-${u.role}">${u.role}</span></td>
-      <td style="font-size:12px">
-        ${u.role==='admin'?'<span class="badge badge-admin">all</span>':
-          (u.projects||[]).map(pid=>{const p=allProjects.find(x=>x.id===pid);return p?`<span class="badge badge-proj" style="margin:1px">${p.name}</span>`:''}).join('')||'<span style="color:#94a3b8">none</span>'}
+      <td style="font-size:12px;max-width:280px">
+        ${u.role==='admin'?'<span class="badge badge-admin">all projects · write</span>':renderUserProjectBadges(u)}
       </td>
       <td style="font-size:12px;color:#94a3b8">${new Date(u.created_at).toLocaleDateString()}</td>
-      <td style="display:flex;gap:4px">
-        <button class="btn btn-sm" onclick='openEditUser(${JSON.stringify(u)})'>Edit</button>
-        ${u.role!=='admin'?`<button class="btn btn-sm btn-danger" onclick="deleteUser('${u.id}','${u.username}')">Delete</button>`:''}
+      <td style="white-space:nowrap">
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button class="btn btn-sm" onclick='openEditUser(${JSON.stringify(u)})'>Edit</button>
+          ${u.role!=='admin'&&hasWriteAccess(u)?`<button class="btn btn-sm btn-indigo" onclick="toggleUserUploadPanel('${u.id}','${u.username}',this)">⬆ Upload Docs</button>`:''}
+          ${u.role!=='admin'?`<button class="btn btn-sm btn-danger" onclick="deleteUser('${u.id}','${u.username}')">Delete</button>`:''}
+        </div>
+      </td>
+    </tr>
+    <tr id="upload-row-${u.id}" style="display:none">
+      <td colspan="5" style="padding:0 12px 10px 12px;background:#fafbfc">
+        <div id="panel-${u.id}"></div>
       </td>
     </tr>`).join('')}</tbody></table>`;
+}
+
+// ── Permission list builder ────────────────────────────────────────────────
+function buildPermList(containerId, existingPerms){
+  // existingPerms: {pid: "read"|"write"} or {}
+  const container = document.getElementById(containerId);
+  if(!allProjects.length){
+    container.innerHTML='<div style="color:#94a3b8;font-size:12px">No projects available.</div>';
+    return;
+  }
+  container.innerHTML = allProjects.map(p=>{
+    const cur = existingPerms[p.id] || 'none';
+    return `<div class="perm-row" data-pid="${p.id}" data-perm="${cur}">
+      <span class="perm-name">${p.name}</span>
+      <div class="perm-toggle">
+        <button class="perm-btn ${cur==='none'?'none-active':''}" onclick="setPerm(this.closest('[data-pid]'),'none')" title="No access">✕ None</button>
+        <button class="perm-btn ${cur==='read'?'active-read':''}" onclick="setPerm(this.closest('[data-pid]'),'read')" title="Read only">👁 Read</button>
+        <button class="perm-btn ${cur==='write'?'active-write':''}" onclick="setPerm(this.closest('[data-pid]'),'write')" title="Read + Upload">✏ Write</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function setPerm(row, perm){
+  row.dataset.perm = perm;
+  row.querySelectorAll('.perm-btn').forEach(b=>b.classList.remove('none-active','active-read','active-write'));
+  if(perm==='none')  row.querySelector('.perm-btn:nth-child(1)').classList.add('none-active');
+  if(perm==='read')  row.querySelector('.perm-btn:nth-child(2)').classList.add('active-read');
+  if(perm==='write') row.querySelector('.perm-btn:nth-child(3)').classList.add('active-write');
+}
+
+function getPermissions(containerId){
+  const perms = {};
+  document.querySelectorAll(`#${containerId} [data-pid]`).forEach(row=>{
+    if(row.dataset.perm !== 'none') perms[row.dataset.pid] = row.dataset.perm;
+  });
+  return perms;
 }
 
 function openUserModal(){
@@ -378,28 +459,18 @@ function openUserModal(){
   document.getElementById('uPass').value='';
   document.getElementById('uRole').value='entity';
   document.getElementById('userModalTitle').textContent='New user';
-  buildTagList('projectTagList',[]);
+  buildPermList('projectPermList',{});
   document.getElementById('userModal').classList.add('open');
-}
-
-function buildTagList(cid,sel){
-  document.getElementById(cid).innerHTML=allProjects.map(p=>
-    `<span class="tag ${sel.includes(p.id)?'selected':''}" data-pid="${p.id}" onclick="this.classList.toggle('selected')">${p.name}</span>`
-  ).join('');
-}
-
-function getSelectedTags(cid){
-  return [...document.querySelectorAll(`#${cid} .tag.selected`)].map(el=>el.dataset.pid).filter(Boolean);
 }
 
 async function saveUser(){
   const username=document.getElementById('uName').value.trim();
   const password=document.getElementById('uPass').value;
   const role=document.getElementById('uRole').value;
-  const projects=getSelectedTags('projectTagList');
+  const project_permissions=getPermissions('projectPermList');
   if(!username||!password){toast('Username and password required',true);return;}
   try{
-    await api('POST','/api/admin/users',{username,password,role,projects});
+    await api('POST','/api/admin/users',{username,password,role,project_permissions});
     closeModal('userModal'); toast(`User "${username}" created`); loadUsers();
   }catch(e){toast(e,true);}
 }
@@ -408,15 +479,15 @@ function openEditUser(u){
   document.getElementById('editUserName').textContent=u.username;
   document.getElementById('editUserId').value=u.id;
   document.getElementById('editPass').value='';
-  buildTagList('editProjectTagList',u.projects||[]);
+  buildPermList('editProjectPermList', u.project_permissions||{});
   document.getElementById('editUserModal').classList.add('open');
 }
 
 async function saveEditUser(){
   const uid=document.getElementById('editUserId').value;
   const pass=document.getElementById('editPass').value;
-  const projects=getSelectedTags('editProjectTagList');
-  const body={projects};
+  const project_permissions=getPermissions('editProjectPermList');
+  const body={project_permissions};
   if(pass) body.password=pass;
   try{await api('PATCH',`/api/admin/users/${uid}`,body);closeModal('editUserModal');toast('User updated');loadUsers();}
   catch(e){toast(e,true);}
@@ -426,6 +497,122 @@ async function deleteUser(id,name){
   if(!confirm(`Delete user "${name}"?`)) return;
   try{await api('DELETE',`/api/admin/users/${id}`);toast('User deleted');loadUsers();}
   catch(e){toast(e,true);}
+}
+
+// ── Per-user Upload Panel ──────────────────────────────────────────────────
+let openPanelUserId = null;
+
+function toggleUserUploadPanel(uid, username, btn){
+  const row   = document.getElementById(`upload-row-${uid}`);
+  const panel = document.getElementById(`panel-${uid}`);
+  const isOpen = row.style.display !== 'none';
+  // Close any other open panel
+  if(openPanelUserId && openPanelUserId!==uid){
+    const old=document.getElementById(`upload-row-${openPanelUserId}`);
+    if(old) old.style.display='none';
+  }
+  if(isOpen){ row.style.display='none'; openPanelUserId=null; return; }
+  openPanelUserId = uid;
+  row.style.display='';
+  renderUserUploadPanel(uid, username, panel);
+}
+
+async function renderUserUploadPanel(uid, username, panel){
+  const user = allUsers.find(u=>u.id===uid);
+  if(!user){ panel.innerHTML='<div class="empty-state">User not found</div>'; return; }
+  const perms = user.project_permissions || {};
+  const writeProjects = allProjects.filter(p=>perms[p.id]==='write');
+  if(!writeProjects.length){ panel.innerHTML='<div style="padding:10px;font-size:13px;color:#64748b">No write-access projects.</div>'; return; }
+
+  panel.innerHTML=`
+  <div style="border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;margin-top:4px">
+    <div style="background:#f8fafc;padding:10px 14px;font-size:12px;font-weight:700;color:#374151;border-bottom:1px solid #e2e8f0;display:flex;align-items:center;justify-content:space-between">
+      <span>⬆ Upload documents as <strong>${username}</strong> (write-access projects only)</span>
+    </div>
+    <div style="padding:14px">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+        <div style="flex:1;min-width:160px">
+          <label style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;display:block">Target Project *</label>
+          <select class="inp" id="up-proj-${uid}" onchange="loadPanelSpecs('${uid}')">
+            <option value="">— select project —</option>
+            ${writeProjects.map(p=>`<option value="${p.id}">${p.name}</option>`).join('')}
+          </select>
+        </div>
+        <div style="flex:1;min-width:120px">
+          <label style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;display:block">Version (optional)</label>
+          <input class="inp" id="up-ver-${uid}" placeholder="auto-assigned if blank">
+        </div>
+        <div style="flex:1;min-width:140px">
+          <label style="font-size:11px;font-weight:600;color:#374151;margin-bottom:4px;display:block">Notes (optional)</label>
+          <input class="inp" id="up-notes-${uid}" placeholder="e.g. Added auth endpoints">
+        </div>
+      </div>
+      <div class="panel-drop" id="pdrop-${uid}"
+           onclick="document.getElementById('pfile-${uid}').click()"
+           ondragover="pdv(event,'${uid}',true)" ondragleave="pdv(event,'${uid}',false)" ondrop="pdd(event,'${uid}')">
+        <div style="font-size:20px">⬆</div>
+        <strong>Drop YAML / JSON / Postman files here</strong>
+        <p>Same filename → new version auto-created</p>
+      </div>
+      <input type="file" id="pfile-${uid}" accept=".yaml,.yml,.json" multiple style="display:none" onchange="panelUpload('${uid}',this.files)">
+      <div id="pfb-${uid}"></div>
+      <div id="pspecs-${uid}" style="margin-top:10px"></div>
+    </div>
+  </div>`;
+}
+
+function pdv(e,uid,on){ e.preventDefault(); document.getElementById(`pdrop-${uid}`).classList.toggle('drag',on); }
+function pdd(e,uid){ e.preventDefault(); document.getElementById(`pdrop-${uid}`).classList.remove('drag'); panelUpload(uid,e.dataTransfer.files); }
+
+async function panelUpload(uid, files){
+  const pid     = document.getElementById(`up-proj-${uid}`).value;
+  const version = document.getElementById(`up-ver-${uid}`).value.trim();
+  const notes   = document.getElementById(`up-notes-${uid}`).value.trim();
+  const fb      = document.getElementById(`pfb-${uid}`);
+  if(!pid){toast('Select a project first',true);return;}
+  const fd=new FormData();
+  Array.from(files).forEach(f=>fd.append('files',f));
+  if(version) fd.append('version',version);
+  if(notes)   fd.append('notes',notes);
+  fb.innerHTML='<div style="color:#6366f1;font-size:12px;padding:4px 0">Uploading…</div>';
+  try{
+    // Upload using admin endpoint (admin is performing this on behalf of write-user)
+    const r=await fetch(`/api/admin/projects/${pid}/specs`,{method:'POST',headers:{'Authorization':'Bearer '+token()},body:fd});
+    const d=await r.json();
+    if(!r.ok) throw d.detail||JSON.stringify(d);
+    fb.innerHTML=`<div class="success-bar" style="font-size:12px">✓ Uploaded: ${d.uploaded.map(u=>`<strong>${u.base_name}</strong> v${u.version_num}`).join(', ')}</div>`;
+    setTimeout(()=>fb.innerHTML='',6000);
+    toast(`${d.uploaded.length} file(s) uploaded`);
+    loadPanelSpecs(uid);
+    loadAllSpecs();
+  }catch(e){fb.innerHTML=`<div class="err-bar" style="font-size:12px">${e}</div>`;toast(String(e),true);}
+}
+
+async function loadPanelSpecs(uid){
+  const pid = document.getElementById(`up-proj-${uid}`)?.value;
+  const el  = document.getElementById(`pspecs-${uid}`);
+  if(!pid||!el){ if(el) el.innerHTML=''; return; }
+  const specs = await api('GET',`/api/admin/projects/${pid}/specs`)||[];
+  if(!specs.length){ el.innerHTML='<div style="font-size:12px;color:#94a3b8;text-align:center;padding:8px">No documents uploaded yet.</div>'; return; }
+  el.innerHTML=`<div style="font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px">Uploaded to this project</div>
+  <table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr>
+      <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #f1f5f9;background:#f8fafc;color:#64748b">Document</th>
+      <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #f1f5f9;background:#f8fafc;color:#64748b">Version</th>
+      <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #f1f5f9;background:#f8fafc;color:#64748b">Uploaded by</th>
+      <th style="padding:5px 8px;text-align:left;border-bottom:1px solid #f1f5f9;background:#f8fafc;color:#64748b">Date</th>
+      <th style="padding:5px 8px;border-bottom:1px solid #f1f5f9;background:#f8fafc"></th>
+    </tr></thead>
+    <tbody>${specs.map(s=>`<tr>
+      <td style="padding:5px 8px;border-bottom:1px solid #f8fafc"><strong>${s.base_name||s.stem}</strong><br><span style="color:#94a3b8;font-size:10px">${s.filename}</span></td>
+      <td style="padding:5px 8px;border-bottom:1px solid #f8fafc"><span class="badge badge-ver" style="font-size:10px">v${s.version_num} · ${s.version}</span></td>
+      <td style="padding:5px 8px;border-bottom:1px solid #f8fafc;color:#64748b">${s.uploaded_by}</td>
+      <td style="padding:5px 8px;border-bottom:1px solid #f8fafc;color:#94a3b8;white-space:nowrap">${new Date(s.uploaded_at).toLocaleDateString()}</td>
+      <td style="padding:5px 8px;border-bottom:1px solid #f8fafc">
+        <a href="/api/admin/projects/${pid}/specs/${s.filename}?token=${token()}" target="_blank" class="btn btn-sm" style="font-size:11px;padding:3px 8px">View</a>
+      </td>
+    </tr>`).join('')}</tbody>
+  </table>`;
 }
 
 // ── Specs ──────────────────────────────────────────────────────────────────
@@ -499,8 +686,9 @@ function filterSpecs(){
 function renderSpecsTable(specs){
   const el=document.getElementById('specs-table');
   if(!specs.length){el.innerHTML='<div class="empty-state">No contracts found.</div>';return;}
-  el.innerHTML=`<table><thead><tr>
-    <th>Document</th><th>Project</th><th>Seq#</th><th>Version</th><th>Format</th><th>Uploaded by</th><th>Uploaded at</th><th>Notes</th><th>Size</th><th>Actions</th>
+  el.innerHTML=`<div style="overflow-x:auto;-webkit-overflow-scrolling:touch">
+  <table style="min-width:900px"><thead><tr>
+    <th>Document</th><th>Project</th><th>Seq#</th><th>Version</th><th>Format</th><th>Uploaded by</th><th>Uploaded at</th><th>Notes</th><th>Size</th><th style="min-width:110px">Actions</th>
   </tr></thead><tbody>
     ${specs.map(s=>`<tr>
       <td>
@@ -516,11 +704,13 @@ function renderSpecsTable(specs){
       <td style="font-size:12px;color:#64748b;white-space:nowrap">${new Date(s.uploaded_at).toLocaleString()}</td>
       <td style="font-size:12px;color:#94a3b8;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.notes||'—'}</td>
       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">${s.size<1024?s.size+'B':Math.round(s.size/1024)+'KB'}</td>
-      <td style="white-space:nowrap;display:flex;gap:4px">
-        <a href="/api/admin/projects/${s.project_id}/specs/${s.filename}?token=${token()}" target="_blank" class="btn btn-sm">View</a>
-        <button class="btn btn-sm btn-danger" onclick="deleteSpec('${s.project_id}','${s.filename}')">Delete</button>
+      <td>
+        <div style="display:flex;gap:4px;flex-wrap:nowrap">
+          <a href="/api/admin/projects/${s.project_id}/specs/${s.filename}?token=${token()}" target="_blank" class="btn btn-sm">View</a>
+          <button class="btn btn-sm btn-danger" onclick="deleteSpec('${s.project_id}','${s.filename}')">Delete</button>
+        </div>
       </td>
-    </tr>`).join('')}</tbody></table>`;
+    </tr>`).join('')}</tbody></table></div>`;
 }
 
 function dv(e,on){e.preventDefault();document.getElementById('specDrop').classList.toggle('drag',on);}

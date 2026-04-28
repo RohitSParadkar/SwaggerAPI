@@ -10,13 +10,39 @@ import postman_converter
 router = APIRouter(prefix="/api/entity", tags=["Entity"])
 
 
-def _allowed_projects(current_user: dict) -> list:
+# ── Permission helpers ────────────────────────────────────────────────────────
+
+def _get_project_permissions(current_user: dict) -> dict:
+    """Returns {pid: 'read'|'write'} for the current user."""
     if current_user.get("role") == "admin":
-        return [p["id"] for p in project_store.list_projects()]
+        return {p["id"]: "write" for p in project_store.list_projects()}
     uid  = current_user.get("sub")
     user = user_store.get_user_by_id(uid) if uid else None
-    return (user or {}).get("projects", [])
+    if not user:
+        return {}
+    perms = user.get("project_permissions", {})
+    # Back-fill: legacy users who only have projects list get read
+    if not perms and user.get("projects"):
+        perms = {pid: "read" for pid in user["projects"]}
+    return perms
 
+
+def _allowed_projects(current_user: dict) -> list:
+    """All project IDs the user can access (any permission)."""
+    return list(_get_project_permissions(current_user).keys())
+
+
+def _writable_projects(current_user: dict) -> list:
+    """Project IDs where the user has write permission."""
+    return [pid for pid, perm in _get_project_permissions(current_user).items()
+            if perm == "write"]
+
+
+def _can_write(current_user: dict, project_id: str) -> bool:
+    return project_id in _writable_projects(current_user)
+
+
+# ── File processor ────────────────────────────────────────────────────────────
 
 def _is_postman(content: bytes) -> bool:
     try:
@@ -62,8 +88,15 @@ def _process_file(content: bytes, fname: str) -> tuple:
 
 @router.get("/projects")
 def my_projects(current_user=Depends(get_current_user)):
-    allowed = _allowed_projects(current_user)
-    return [p for p in project_store.list_projects() if p["id"] in allowed]
+    """Return projects with permission level attached."""
+    perms   = _get_project_permissions(current_user)
+    allowed = list(perms.keys())
+    result  = []
+    for p in project_store.list_projects():
+        if p["id"] in allowed:
+            p["permission"] = perms[p["id"]]
+            result.append(p)
+    return result
 
 
 # ── Specs (flat list) ─────────────────────────────────────────────────────────
@@ -81,10 +114,6 @@ def project_specs(project_id: str, current_user=Depends(get_current_user)):
 
 @router.get("/projects/{project_id}/documents")
 def project_documents(project_id: str, current_user=Depends(get_current_user)):
-    """
-    Returns specs grouped by document (base name).
-    Each entry has:  base_name, versions (list of spec objects), latest (spec object)
-    """
     if project_id not in _allowed_projects(current_user):
         raise HTTPException(status_code=403, detail="Access denied to this project")
     if not project_store.get_project(project_id):
@@ -104,20 +133,24 @@ def get_spec(project_id: str, filename: str, current_user=Depends(get_current_us
     return JSONResponse(content=spec)
 
 
-# ── Upload ────────────────────────────────────────────────────────────────────
+# ── Upload (write permission required) ───────────────────────────────────────
 
 @router.post("/projects/{project_id}/specs")
 async def entity_upload_spec(
     project_id: str,
     files:   list[UploadFile] = File(...),
-    version: str = Form(default=""),   # optional; if blank, auto-infer from version_num
+    version: str = Form(default=""),
     notes:   str = Form(default=""),
     current_user=Depends(get_current_user),
 ):
     if project_id not in _allowed_projects(current_user):
         raise HTTPException(status_code=403, detail="Access denied to this project")
+    if not _can_write(current_user, project_id):
+        raise HTTPException(status_code=403,
+                            detail="Write permission required to upload documents")
     if not project_store.get_project(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
+
     uploaded = []
     for f in files:
         content = await f.read()
@@ -127,9 +160,6 @@ async def entity_upload_spec(
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
 
-        # If the caller did not supply a version label, derive it from the
-        # auto-incremented version_num that save_spec will assign.
-        # We do a pre-check here to compute what version_num will be.
         _, preview_num = project_store._next_versioned_filename(project_id, fname)
         effective_version = version.strip() if version.strip() else f"{preview_num}.0.0"
 

@@ -19,23 +19,33 @@ async def swagger_ui(request: Request):
              request.headers.get("Authorization", "").replace("Bearer ", "") or
              request.cookies.get("token", ""))
 
-    # resolve allowed projects
+    # Resolve allowed projects + permissions
     if user.get("role") == "admin":
-        projects = project_store.list_projects()
+        all_projects = project_store.list_projects()
+        perms = {p["id"]: "write" for p in all_projects}
     else:
         uid  = user.get("sub")
         u    = user_store.get_user_by_id(uid) if uid else None
-        pids = (u or {}).get("projects", [])
-        projects = [p for p in project_store.list_projects() if p["id"] in pids]
+        perms = {}
+        if u:
+            perms = u.get("project_permissions", {})
+            if not perms and u.get("projects"):
+                perms = {pid: "read" for pid in u["projects"]}
+        allowed_pids = list(perms.keys())
+        all_projects = [p for p in project_store.list_projects() if p["id"] in allowed_pids]
 
-    # Build structured data: projects → documents → versions
     base = str(request.base_url).rstrip("/")
     nav_data = []
-    for proj in projects:
+    for proj in all_projects:
         docs = project_store.list_documents(proj["id"])
         if not docs:
             continue
-        proj_entry = {"id": proj["id"], "name": proj["name"], "documents": []}
+        proj_entry = {
+            "id": proj["id"],
+            "name": proj["name"],
+            "permission": perms.get(proj["id"], "read"),
+            "documents": []
+        }
         for doc in docs:
             doc_entry = {"base_name": doc["base_name"], "versions": []}
             for v in doc["versions"]:
@@ -52,21 +62,35 @@ async def swagger_ui(request: Request):
             proj_entry["documents"].append(doc_entry)
         nav_data.append(proj_entry)
 
-    if not nav_data:
+    write_projects = [
+        {"id": p["id"], "name": p["name"]}
+        for p in all_projects
+        if perms.get(p["id"]) == "write"
+    ]
+
+    if not nav_data and not write_projects:
         return HTMLResponse(_no_specs_page(user["username"]), status_code=200)
 
-    return HTMLResponse(_swagger_page(nav_data, user, token))
+    return HTMLResponse(_swagger_page(nav_data, write_projects, user, token, base))
 
 
-def _swagger_page(nav_data, user, token):
+def _swagger_page(nav_data, write_projects, user, token, base):
     preauth = (f"ui.preauthorizeApiKey && ui.preauthorizeApiKey('BearerAuth', '{token}');"
                if token else "")
     role_badge_colors = {"admin": "#6366f1", "entity": "#0ea5e9"}
     badge_color = role_badge_colors.get(user.get("role", "entity"), "#64748b")
+    nav_json        = json.dumps(nav_data)
+    write_proj_json = json.dumps(write_projects)
+    has_write       = len(write_projects) > 0
+    upload_btn_html = (
+        '<button id="upload-toggle-btn" onclick="toggleUpload()" '
+        'style="padding:5px 13px;background:#10b981;color:#fff;border:none;'
+        'border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;'
+        'display:flex;align-items:center;gap:5px;white-space:nowrap">'
+        '<span style="font-size:14px">⬆</span> Upload Docs'
+        '</button>'
+    ) if has_write else ""
 
-    nav_json = json.dumps(nav_data)
-
-    # Build the initial urls list (all latest versions) for Swagger boot
     all_latest = []
     for proj in nav_data:
         for doc in proj["documents"]:
@@ -84,62 +108,113 @@ def _swagger_page(nav_data, user, token):
   <style>
     *{{box-sizing:border-box;margin:0;padding:0}}
     body{{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f8fafc}}
-    #topbar{{background:#0f172a;color:#fff;padding:0 24px;height:54px;display:flex;align-items:center;gap:12px;justify-content:space-between;position:sticky;top:0;z-index:100}}
+    #topbar{{background:#0f172a;color:#fff;padding:0 20px;height:54px;display:flex;align-items:center;gap:10px;justify-content:space-between;position:sticky;top:0;z-index:200}}
     #topbar h1{{font-size:15px;font-weight:600;letter-spacing:-.2px}}
-    #topbar .sub{{font-size:11px;opacity:.55;margin-top:2px}}
-    .badge{{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;background:{badge_color};color:#fff}}
-    .logout-btn{{background:rgba(255,255,255,.1);border:none;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer}}
+    #topbar .sub{{font-size:11px;opacity:.5;margin-top:2px}}
+    .role-badge{{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:500;background:{badge_color};color:#fff;flex-shrink:0}}
+    .logout-btn{{background:rgba(255,255,255,.1);border:none;color:#fff;font-size:12px;padding:5px 12px;border-radius:6px;cursor:pointer;flex-shrink:0}}
     .logout-btn:hover{{background:rgba(255,255,255,.2)}}
-
-    /* ── Selector bar ── */
-    #selector-bar{{background:#fff;border-bottom:1px solid #e2e8f0;padding:10px 24px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:sticky;top:54px;z-index:99;box-shadow:0 1px 4px rgba(0,0,0,.06)}}
-    #selector-bar label{{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}}
-    .sel{{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;color:#0f172a;background:#fff;outline:none;min-width:170px;cursor:pointer;transition:border-color .15s}}
+    #selector-bar{{background:#fff;border-bottom:1px solid #e2e8f0;padding:8px 20px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;position:sticky;top:54px;z-index:199;box-shadow:0 1px 3px rgba(0,0,0,.04)}}
+    .bar-label{{font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;white-space:nowrap}}
+    .sel{{padding:6px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;color:#0f172a;background:#fff;outline:none;min-width:155px;cursor:pointer;transition:border-color .15s}}
     .sel:focus{{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}}
     .sel:disabled{{background:#f8fafc;color:#94a3b8;cursor:default}}
-    .arrow{{font-size:12px;color:#94a3b8;user-select:none}}
-    #load-btn{{padding:7px 16px;background:#6366f1;color:#fff;border:none;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;transition:background .15s;white-space:nowrap}}
+    .arrow{{font-size:11px;color:#cbd5e1;flex-shrink:0}}
+    #load-btn{{padding:6px 13px;background:#6366f1;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;flex-shrink:0}}
     #load-btn:hover{{background:#4f46e5}}
     #load-btn:disabled{{background:#94a3b8;cursor:default}}
-    #spec-label{{font-size:12px;color:#64748b;margin-left:4px}}
-
+    #spec-label{{font-size:11px;color:#94a3b8;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px}}
+    .bar-spacer{{flex:1}}
+    #upload-drawer{{background:#f0fdf4;border-bottom:2px solid #6ee7b7;overflow:hidden;max-height:0;transition:max-height .35s cubic-bezier(.4,0,.2,1);position:sticky;top:calc(54px + 45px);z-index:198}}
+    #upload-drawer.open{{max-height:260px}}
+    .drawer-inner{{padding:14px 20px}}
+    .drawer-title{{font-size:13px;font-weight:700;color:#065f46;margin-bottom:11px;display:flex;align-items:center;gap:6px}}
+    .drawer-fields{{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}}
+    .d-field{{display:flex;flex-direction:column;gap:3px;flex:1;min-width:140px}}
+    .d-field label{{font-size:10px;font-weight:700;color:#374151;text-transform:uppercase;letter-spacing:.05em}}
+    .d-field select,.d-field input{{padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;background:#fff;color:#0f172a;outline:none;width:100%}}
+    .d-field select:focus,.d-field input:focus{{border-color:#10b981;box-shadow:0 0 0 3px rgba(16,185,129,.1)}}
+    .drop-zone{{border:2px dashed #6ee7b7;border-radius:8px;padding:10px 16px;cursor:pointer;transition:all .2s;background:#fff;display:flex;align-items:center;gap:12px;flex:1;min-width:220px}}
+    .drop-zone:hover,.drop-zone.drag{{border-color:#10b981;background:#ecfdf5}}
+    .drop-zone .dz-icon{{font-size:22px;flex-shrink:0}}
+    .drop-zone .dz-text strong{{display:block;font-size:13px;color:#0f172a}}
+    .drop-zone .dz-text span{{font-size:11px;color:#64748b}}
+    #up-feedback{{font-size:12px;margin-top:6px}}
+    .s-ok{{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:7px 12px;color:#15803d}}
+    .s-err{{background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:7px 12px;color:#dc2626}}
+    .bv{{display:inline-block;font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600;background:#fef9c3;color:#a16207}}
+    .bn{{display:inline-block;font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600;background:#dcfce7;color:#15803d}}
     .swagger-ui .topbar{{display:none!important}}
-    #swagger-ui{{min-height:calc(100vh - 108px)}}
+    #swagger-ui{{min-height:calc(100vh - 99px)}}
   </style>
 </head>
 <body>
 
 <div id="topbar">
   <div>
-    <h1>API Documentation Hub</h1>
+    <h1>⚡ API Documentation Hub</h1>
     <div class="sub">Signed in as <strong>{user['username']}</strong></div>
   </div>
-  <div style="display:flex;align-items:center;gap:10px">
-    <span class="badge">{user.get('role','entity')}</span>
+  <div style="display:flex;align-items:center;gap:8px">
+    <span class="role-badge">{user.get('role','entity')}</span>
+    {upload_btn_html}
     <button class="logout-btn" onclick="fetch('/api/auth/logout',{{method:'POST'}}).then(()=>window.location='/login.html')">Logout</button>
   </div>
 </div>
 
 <div id="selector-bar">
-  <label>Project</label>
+  <span class="bar-label">Project</span>
   <select id="dd-project" class="sel" onchange="onProjectChange()">
-    <option value="">— select project —</option>
+    <option value="">— select —</option>
   </select>
-
   <span class="arrow">›</span>
-  <label>Document</label>
+  <span class="bar-label">Document</span>
   <select id="dd-document" class="sel" disabled onchange="onDocumentChange()">
-    <option value="">— select document —</option>
+    <option value="">— select —</option>
   </select>
-
   <span class="arrow">›</span>
-  <label>Version</label>
+  <span class="bar-label">Version</span>
   <select id="dd-version" class="sel" disabled onchange="onVersionChange()">
-    <option value="">— select version —</option>
+    <option value="">— select —</option>
   </select>
-
   <button id="load-btn" disabled onclick="loadSelectedSpec()">Load ↗</button>
   <span id="spec-label"></span>
+  <span class="bar-spacer"></span>
+</div>
+
+<div id="upload-drawer">
+  <div class="drawer-inner">
+    <div class="drawer-title">⬆ Upload API Contract</div>
+    <div class="drawer-fields">
+      <div class="d-field" style="max-width:200px">
+        <label>Project *</label>
+        <select id="up-project">
+          <option value="">— select —</option>
+        </select>
+      </div>
+      <div class="d-field">
+        <label>Version label</label>
+        <input id="up-version" placeholder="e.g. 2.1.0 — blank = auto">
+      </div>
+      <div class="d-field">
+        <label>Notes</label>
+        <input id="up-notes" placeholder="e.g. Added payment endpoints">
+      </div>
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:stretch">
+      <div class="drop-zone" id="up-dropzone"
+           onclick="document.getElementById('up-file').click()"
+           ondragover="upDv(event,true)" ondragleave="upDv(event,false)" ondrop="upDrop(event)">
+        <div class="dz-icon">⬆</div>
+        <div class="dz-text">
+          <strong>Drop YAML / JSON / Postman here</strong>
+          <span>or click to browse &nbsp;·&nbsp; same filename → new version auto-created</span>
+        </div>
+      </div>
+      <input type="file" id="up-file" accept=".yaml,.yml,.json" multiple style="display:none" onchange="doUpload(this.files)">
+    </div>
+    <div id="up-feedback"></div>
+  </div>
 </div>
 
 <div id="swagger-ui"></div>
@@ -147,21 +222,27 @@ def _swagger_page(nav_data, user, token):
 <script src="{CDN}/swagger-ui-bundle.js"></script>
 <script src="{CDN}/swagger-ui-standalone-preset.js"></script>
 <script>
-const NAV  = {nav_json};
-const ALL_LATEST = {json.dumps(all_latest)};
+const NAV         = {nav_json};
+const WRITE_PROJS = {write_proj_json};
+const TOKEN       = {json.dumps(token)};
+const API_BASE    = {json.dumps(base)};
 
-let ui = null;
-let selectedUrl = null;
+let ui = null, selectedUrl = null;
 
-// ── Bootstrap Swagger with all-latest urls ──────────────────────────────────
 window.onload = function() {{
+  const allLatest = [];
+  NAV.forEach(proj => proj.documents.forEach(doc => {{
+    const v = doc.versions[doc.versions.length - 1];
+    allLatest.push({{ url: v.url, name: proj.name + ' / ' + doc.base_name }});
+  }}));
+
   ui = SwaggerUIBundle({{
-    urls: ALL_LATEST,
-    "urls.primaryName": ALL_LATEST.length ? ALL_LATEST[0].name : '',
-    dom_id: "#swagger-ui",
+    urls: allLatest,
+    'urls.primaryName': allLatest.length ? allLatest[0].name : '',
+    dom_id: '#swagger-ui',
     deepLinking: true,
     presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
-    layout: "StandaloneLayout",
+    layout: 'StandaloneLayout',
     persistAuthorization: true,
     displayRequestDuration: true,
     filter: true,
@@ -170,34 +251,38 @@ window.onload = function() {{
   window.ui = ui;
   setTimeout(() => {{ {preauth} }}, 500);
 
-  // populate project dropdown
+  // Populate view-project dropdown
   const ddP = document.getElementById('dd-project');
   NAV.forEach(proj => {{
     const o = document.createElement('option');
-    o.value = proj.id; o.textContent = proj.name;
+    o.value = proj.id;
+    o.textContent = proj.name + (proj.permission === 'write' ? ' ✏' : '');
     ddP.appendChild(o);
   }});
+  if (NAV.length === 1) {{ ddP.value = NAV[0].id; onProjectChange(); }}
 
-  // auto-select first project if only one
-  if (NAV.length === 1) {{
-    ddP.value = NAV[0].id;
-    onProjectChange();
-  }}
+  // Populate upload-project dropdown
+  const upP = document.getElementById('up-project');
+  WRITE_PROJS.forEach(p => {{
+    const o = document.createElement('option');
+    o.value = p.id; o.textContent = p.name;
+    upP.appendChild(o);
+  }});
+  if (WRITE_PROJS.length === 1) upP.value = WRITE_PROJS[0].id;
 }};
 
-// ── Cascading dropdown logic ────────────────────────────────────────────────
+// ── View selector bar ─────────────────────────────────────────────────────────
 function onProjectChange() {{
-  const pid  = document.getElementById('dd-project').value;
-  const ddD  = document.getElementById('dd-document');
-  const ddV  = document.getElementById('dd-version');
-  ddD.innerHTML = '<option value="">— select document —</option>';
-  ddV.innerHTML = '<option value="">— select version —</option>';
+  const pid = document.getElementById('dd-project').value;
+  const ddD = document.getElementById('dd-document');
+  const ddV = document.getElementById('dd-version');
+  ddD.innerHTML = '<option value="">— select —</option>';
+  ddV.innerHTML = '<option value="">— select —</option>';
   ddD.disabled = true; ddV.disabled = true;
   document.getElementById('load-btn').disabled = true;
   document.getElementById('spec-label').textContent = '';
   selectedUrl = null;
   if (!pid) return;
-
   const proj = NAV.find(p => p.id === pid);
   if (!proj) return;
   proj.documents.forEach(doc => {{
@@ -207,28 +292,21 @@ function onProjectChange() {{
     ddD.appendChild(o);
   }});
   ddD.disabled = false;
-
-  // auto-select first doc if only one
-  if (proj.documents.length === 1) {{
-    ddD.value = proj.documents[0].base_name;
-    onDocumentChange();
-  }}
+  if (proj.documents.length === 1) {{ ddD.value = proj.documents[0].base_name; onDocumentChange(); }}
 }}
 
 function onDocumentChange() {{
-  const pid    = document.getElementById('dd-project').value;
-  const base   = document.getElementById('dd-document').value;
-  const ddV    = document.getElementById('dd-version');
-  ddV.innerHTML = '<option value="">— select version —</option>';
+  const pid  = document.getElementById('dd-project').value;
+  const base = document.getElementById('dd-document').value;
+  const ddV  = document.getElementById('dd-version');
+  ddV.innerHTML = '<option value="">— select —</option>';
   ddV.disabled = true;
   document.getElementById('load-btn').disabled = true;
   selectedUrl = null;
   if (!base) return;
-
   const proj = NAV.find(p => p.id === pid);
   const doc  = proj && proj.documents.find(d => d.base_name === base);
   if (!doc) return;
-
   doc.versions.forEach(v => {{
     const o = document.createElement('option');
     o.value = v.url;
@@ -236,12 +314,9 @@ function onDocumentChange() {{
     ddV.appendChild(o);
   }});
   ddV.disabled = false;
-
-  // auto-select latest version
   const latest = doc.versions[doc.versions.length - 1];
   if (latest) {{
-    ddV.value   = latest.url;
-    selectedUrl = latest.url;
+    ddV.value = latest.url; selectedUrl = latest.url;
     document.getElementById('load-btn').disabled = false;
     document.getElementById('spec-label').textContent = latest.filename;
   }}
@@ -251,27 +326,100 @@ function onVersionChange() {{
   const url = document.getElementById('dd-version').value;
   selectedUrl = url || null;
   document.getElementById('load-btn').disabled = !selectedUrl;
-  if (url) {{
-    const ddV = document.getElementById('dd-version');
-    const opt = ddV.options[ddV.selectedIndex];
-    document.getElementById('spec-label').textContent = '';
-  }}
+  const opt = document.getElementById('dd-version').selectedOptions[0];
+  document.getElementById('spec-label').textContent =
+    opt ? opt.textContent.replace('  ★ latest','').trim() : '';
 }}
 
 function loadSelectedSpec() {{
   if (!selectedUrl || !ui) return;
-  const ddP = document.getElementById('dd-project');
-  const ddD = document.getElementById('dd-document');
-  const ddV = document.getElementById('dd-version');
-  const projName = ddP.options[ddP.selectedIndex]?.textContent || '';
-  const docName  = document.getElementById('dd-document').value;
-  const verOpt   = ddV.options[ddV.selectedIndex];
-  const label    = `${{projName}} / ${{docName}}`;
-
   ui.specActions.updateUrl(selectedUrl);
   ui.specActions.download(selectedUrl);
+  const opt = document.getElementById('dd-version').selectedOptions[0];
   document.getElementById('spec-label').textContent =
-    verOpt ? verOpt.textContent.replace('  ★ latest','').trim() : '';
+    opt ? opt.textContent.replace('  ★ latest','').trim() : '';
+}}
+
+// ── Upload drawer ─────────────────────────────────────────────────────────────
+function toggleUpload() {{
+  const drawer = document.getElementById('upload-drawer');
+  const btn    = document.getElementById('upload-toggle-btn');
+  const open   = drawer.classList.toggle('open');
+  btn.style.background = open ? '#059669' : '#10b981';
+  if (open) document.getElementById('up-feedback').innerHTML = '';
+}}
+
+function upDv(e, on) {{
+  e.preventDefault();
+  document.getElementById('up-dropzone').classList.toggle('drag', on);
+}}
+
+function upDrop(e) {{
+  e.preventDefault();
+  document.getElementById('up-dropzone').classList.remove('drag');
+  doUpload(e.dataTransfer.files);
+}}
+
+async function doUpload(files) {{
+  const pid     = document.getElementById('up-project').value;
+  const version = document.getElementById('up-version').value.trim();
+  const notes   = document.getElementById('up-notes').value.trim();
+  const fb      = document.getElementById('up-feedback');
+  if (!pid) {{ fb.innerHTML = '<div class="s-err">Please select a project first.</div>'; return; }}
+
+  const fd = new FormData();
+  Array.from(files).forEach(f => fd.append('files', f));
+  if (version) fd.append('version', version);
+  if (notes)   fd.append('notes', notes);
+
+  fb.innerHTML = '<div style="color:#059669;font-size:12px;padding:4px 0">⏳ Uploading…</div>';
+
+  try {{
+    const r = await fetch(API_BASE + '/api/entity/projects/' + pid + '/specs', {{
+      method: 'POST',
+      headers: {{ 'Authorization': 'Bearer ' + TOKEN }},
+      body: fd
+    }});
+    const d = await r.json();
+    if (!r.ok) throw d.detail || JSON.stringify(d);
+
+    const items = d.uploaded.map(u =>
+      '<strong>' + u.base_name + '</strong> ' +
+      '<span class="bv">v' + u.version_num + ' · ' + u.version + '</span>' +
+      (u.version_num > 1 ? ' <span class="bn">new version</span>' : '')
+    ).join(' &nbsp;·&nbsp; ');
+
+    fb.innerHTML = '<div class="s-ok">✓ Uploaded: ' + items + '</div>';
+    setTimeout(() => {{ fb.innerHTML = ''; }}, 8000);
+
+    refreshNavAfterUpload(pid);
+  }} catch(e) {{
+    fb.innerHTML = '<div class="s-err">✗ ' + e + '</div>';
+  }}
+}}
+
+// Refresh nav_data + selector bar after upload
+async function refreshNavAfterUpload(pid) {{
+  try {{
+    const r = await fetch(API_BASE + '/api/entity/projects/' + pid + '/documents', {{
+      headers: {{ 'Authorization': 'Bearer ' + TOKEN }}
+    }});
+    if (!r.ok) return;
+    const freshDocs = await r.json();
+    const projEntry = NAV.find(p => p.id === pid);
+    if (projEntry) {{
+      projEntry.documents = freshDocs.map(doc => {{
+        const entry = {{ base_name: doc.base_name, versions: [] }};
+        (doc.versions || []).forEach(v => {{
+          const url = API_BASE + '/api/entity/projects/' + pid + '/specs/' + v.filename + (TOKEN ? '?token=' + TOKEN : '');
+          entry.versions.push({{ filename: v.filename, version: v.version, version_num: v.version_num, url, label: 'v' + v.version_num + ' — ' + v.version }});
+        }});
+        return entry;
+      }});
+    }}
+    // If the currently selected project is the same one, refresh its dropdowns
+    if (document.getElementById('dd-project').value === pid) onProjectChange();
+  }} catch(e) {{ console.warn('nav refresh:', e); }}
 }}
 </script>
 </body>

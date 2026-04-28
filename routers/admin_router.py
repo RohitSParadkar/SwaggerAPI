@@ -18,11 +18,15 @@ class UserCreate(BaseModel):
     username: str
     password: str
     role:     str = "entity"
-    projects: list[str] = []
+    # New: explicit per-project permissions  {pid: "read"|"write"}
+    # Falls back to `projects` list (all read) if omitted
+    project_permissions: dict = {}
+    projects: list[str] = []   # legacy — kept for backward compat
 
 class UserUpdate(BaseModel):
     password: Optional[str] = None
-    projects: Optional[list[str]] = None
+    project_permissions: Optional[dict] = None
+    projects: Optional[list[str]] = None   # legacy
 
 
 @router.get("/users")
@@ -32,15 +36,27 @@ def list_users(admin=Depends(require_admin)):
 @router.post("/users", status_code=201)
 def create_user(body: UserCreate, admin=Depends(require_admin)):
     try:
-        return user_store.create_user(body.username, body.password, body.role,
-                                      body.projects, created_by=admin["username"])
+        # Prefer explicit project_permissions; fall back to projects list
+        perms = body.project_permissions or {}
+        return user_store.create_user(
+            body.username, body.password, body.role,
+            projects=body.projects,
+            project_permissions=perms if perms else None,
+            created_by=admin["username"],
+        )
     except ValueError as e:
         raise HTTPException(status_code=409, detail=str(e))
 
 @router.patch("/users/{user_id}")
 def update_user(user_id: str, body: UserUpdate, admin=Depends(require_admin)):
     try:
-        kwargs = {k: v for k, v in body.model_dump().items() if v is not None}
+        kwargs = {}
+        if body.project_permissions is not None:
+            kwargs["project_permissions"] = body.project_permissions
+        elif body.projects is not None:
+            kwargs["projects"] = body.projects
+        if body.password is not None:
+            kwargs["password"] = body.password
         return user_store.update_user(user_id, **kwargs)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
@@ -54,8 +70,17 @@ def delete_user(user_id: str, admin=Depends(require_admin)):
 
 @router.put("/users/{user_id}/projects")
 def assign_projects(user_id: str, body: dict, admin=Depends(require_admin)):
+    """
+    Accepts either:
+      { "project_ids": [...] }                  → all read (legacy)
+      { "project_permissions": {pid: perm} }    → explicit
+    """
     try:
-        return user_store.update_user(user_id, projects=body.get("project_ids", []))
+        if "project_permissions" in body:
+            return user_store.update_user(user_id,
+                                          project_permissions=body["project_permissions"])
+        return user_store.update_user(user_id,
+                                      projects=body.get("project_ids", []))
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
 
@@ -148,7 +173,7 @@ def _process_file(content: bytes, fname: str) -> tuple:
 async def upload_spec(
     project_id: str,
     files:   list[UploadFile] = File(...),
-    version: str = Form(default=""),   # optional — auto-derived if blank
+    version: str = Form(default=""),
     notes:   str = Form(default=""),
     admin=Depends(require_admin),
 ):
@@ -183,7 +208,6 @@ def list_project_specs(project_id: str, admin=Depends(require_admin)):
 
 @router.get("/projects/{project_id}/documents")
 def list_project_documents(project_id: str, admin=Depends(require_admin)):
-    """Grouped by base document name with all versions."""
     if not project_store.get_project(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
     return project_store.list_documents(project_id)
