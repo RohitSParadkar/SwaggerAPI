@@ -1,0 +1,250 @@
+openapi: 3.0.3
+info:
+  title: FinBox Middleware - Jio APIs
+  description: >-
+    Postman collection for FinBox Middleware APIs exposed to Jio. Covers trigger
+    creation, ledger fetch, and the webhook payload Middleware sends back to
+    Jio.
+
+
+    **Base URL:** Set the `base_url` variable in the collection.
+
+    **Auth:** Set the `auth_token` variable (mechanism TBD with Jio team).
+  version: 1.0.0
+  contact: {}
+servers:
+  - url: https://middleware.finbox.example.com
+  - url: https://jio.example.com/webhook/finbox
+paths:
+  /v1/trigger:
+    post:
+      tags:
+        - Triggers
+      summary: Trigger - Bureau
+      description: Fetch bureau data from Jio DB and store in Middleware (with TTL).
+      operationId: triggerBureau
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customer_id:
+                  type: string
+                  example: cust_123
+                ledger_data_source:
+                  type: string
+                  example: aa+sms
+                ledger_type:
+                  type: array
+                  items:
+                    type: string
+                    example: transactional
+                  example:
+                    - transactional
+                request_id:
+                  type: string
+                  example: req_abc_007
+                trigger_type:
+                  type: array
+                  items:
+                    type: string
+                    example: ledger
+                  example:
+                    - ledger
+            examples:
+              Trigger - AA (auto-triggers PFM):
+                value:
+                  customer_id: cust_123
+                  request_id: req_abc_004
+                  trigger_type:
+                    - aa
+              Trigger - Bureau:
+                value:
+                  customer_id: cust_123
+                  request_id: req_abc_001
+                  trigger_type:
+                    - bureau
+              Trigger - Customer Input:
+                value:
+                  customer_id: cust_123
+                  request_id: req_abc_002
+                  trigger_type:
+                    - customer_input
+              Trigger - Ledger (separate call):
+                value:
+                  customer_id: cust_123
+                  ledger_data_source: aa+sms
+                  ledger_type:
+                    - transactional
+                  request_id: req_abc_007
+                  trigger_type:
+                    - ledger
+              Trigger - Multiple (Bureau + Customer Input + Platform):
+                value:
+                  customer_id: cust_123
+                  request_id: req_abc_006
+                  trigger_type:
+                    - bureau
+                    - customer_input
+                    - platform
+              Trigger - PFM Passive:
+                value:
+                  customer_id: cust_123
+                  request_id: req_abc_005
+                  trigger_type:
+                    - pfm_passive
+              Trigger - Platform:
+                value:
+                  customer_id: cust_123
+                  request_id: req_abc_003
+                  trigger_type:
+                    - platform
+      responses:
+        '200':
+          description: ''
+  /v1/ledger:
+    get:
+      tags:
+        - Ledger Fetch
+      summary: GET /v1/ledger
+      description: >-
+        Fetch ledger response after ledger trigger completion webhook is
+        received.
+
+
+        **Sample response:**
+
+        ```json
+
+        {
+          "status": "success",
+          "request_id": "req_abc_007",
+          "customer_id": "cust_123",
+          "data_processed_at": "1713139200",
+          "data": { ... }
+        }
+
+        ```
+
+
+        `data_processed_at` is Unix timestamp in seconds.
+
+
+        Full ledger response schema will be shared separately.
+      operationId: getV1Ledger
+      parameters:
+        - name: request_id
+          in: query
+          schema:
+            type: string
+            example: req_abc_007
+        - name: customer_id
+          in: query
+          schema:
+            type: string
+            example: cust_123
+      responses:
+        '200':
+          description: ''
+  /v1/createUser:
+    post:
+      tags:
+        - createUser
+      summary: POST /v1/createUser
+      description: >-
+        FinBox will share the user-creation API contract separately. This is a
+        placeholder.
+      operationId: postV1Createuser
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                customer_id:
+                  type: string
+                  example: cust_123
+            examples:
+              POST /v1/createUser:
+                value:
+                  customer_id: cust_123
+      responses:
+        '200':
+          description: ''
+  /:
+    post:
+      tags:
+        - Webhook (Middleware → Jio)
+      summary: Webhook - Bureau success
+      description: >-
+        Sample webhook Middleware sends to Jio when bureau trigger completes.
+
+
+        **Trigger types in webhook:** bureau, aa, customer_input, platform,
+        pfm_passive, ledger
+      operationId: webhookBureauSuccess
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                completed_at:
+                  type: string
+                  example: '2026-04-22T10:20:00Z'
+                customer_id:
+                  type: string
+                  example: cust_123
+                request_id:
+                  type: string
+                  example: req_abc_007
+                status:
+                  type: string
+                  example: success
+                trigger_type:
+                  type: string
+                  example: ledger
+            examples:
+              Webhook - AA + PFM completion:
+                value:
+                  completed_at: '2026-04-22T10:18:00Z'
+                  customer_id: cust_123
+                  request_id: req_abc_004
+                  status: success
+                  trigger_type: aa
+              Webhook - Bureau success:
+                value:
+                  completed_at: '2026-04-22T10:15:00Z'
+                  customer_id: cust_123
+                  request_id: req_abc_001
+                  status: success
+                  trigger_type: bureau
+              Webhook - Ledger success:
+                value:
+                  completed_at: '2026-04-22T10:20:00Z'
+                  customer_id: cust_123
+                  request_id: req_abc_007
+                  status: success
+                  trigger_type: ledger
+      responses:
+        '200':
+          description: ''
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+security:
+  - bearerAuth: []
+tags:
+  - name: Triggers
+    description: >-
+      Single endpoint for all 6 trigger types. Async — returns 202 with
+      request_id; completion is notified via webhook.
+  - name: Ledger Fetch
+  - name: createUser
+  - name: Webhook (Middleware → Jio)
+    description: >-
+      Reference for the payload Middleware POSTs to Jio's webhook URL on trigger
+      completion. Use this folder to test Jio's webhook receiver.

@@ -361,11 +361,19 @@ function upDrop(e) {{
 }}
 
 async function doUpload(files) {{
+  const fileInput = document.getElementById('up-file');
   const pid     = document.getElementById('up-project').value;
   const version = document.getElementById('up-version').value.trim();
   const notes   = document.getElementById('up-notes').value.trim();
   const fb      = document.getElementById('up-feedback');
-  if (!pid) {{ fb.innerHTML = '<div class="s-err">Please select a project first.</div>'; return; }}
+
+  // Always reset the file input so the same file can be re-selected after an error
+  fileInput.value = '';
+
+  if (!pid) {{
+    fb.innerHTML = '<div class="s-err">⚠ Please select a project first, then drop or browse your file again.</div>';
+    return;
+  }}
 
   const fd = new FormData();
   Array.from(files).forEach(f => fd.append('files', f));
@@ -395,6 +403,7 @@ async function doUpload(files) {{
     refreshNavAfterUpload(pid);
   }} catch(e) {{
     fb.innerHTML = '<div class="s-err">✗ ' + e + '</div>';
+    // input already reset at top of function — user can retry immediately
   }}
 }}
 
