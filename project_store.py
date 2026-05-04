@@ -160,14 +160,15 @@ def list_specs(pid: str) -> list[dict]:
         out.append({
             "filename":    f.name,
             "stem":        f.stem,
-            "base_name":   _base_stem(f.stem),        # canonical document name
+            "base_name":   _base_stem(f.stem),
             "size":        s.st_size,
             "modified":    datetime.fromtimestamp(s.st_mtime).isoformat(),
             "uploaded_by": m.get("uploaded_by", "unknown"),
             "uploaded_at": m.get("uploaded_at", datetime.fromtimestamp(s.st_mtime).isoformat()),
             "version":     m.get("version", "1.0.0"),
-            "version_num": m.get("version_num", 1),   # integer sequence (1, 2, 3…)
+            "version_num": m.get("version_num", 1),
             "notes":       m.get("notes", ""),
+            "converted":   m.get("converted", False),   # True if source was Postman/JSON → converted to YAML
             "format":      f.suffix.lower().lstrip("."),
         })
     return out
@@ -196,11 +197,11 @@ def list_documents(pid: str) -> list[dict]:
 def save_spec(pid: str, filename: str, content: bytes,
               uploaded_by: str = "admin",
               version: str = "1.0.0",
-              notes: str = "") -> dict:
+              notes: str = "",
+              converted: bool = False) -> dict:
     if not _load_meta(pid):
         raise KeyError(f"Project {pid} not found")
 
-    # Auto-version: if the base document already exists, bump the filename
     final_filename, version_num = _next_versioned_filename(pid, filename)
 
     dest = _specs_dir(pid) / final_filename
@@ -209,12 +210,13 @@ def save_spec(pid: str, filename: str, content: bytes,
     spec_meta = _load_spec_meta(pid)
     now = datetime.utcnow().isoformat()
     spec_meta[final_filename] = {
-        "uploaded_by": uploaded_by,
-        "uploaded_at": now,
-        "version":     version,
-        "version_num": version_num,
-        "notes":       notes,
-        "original_filename": filename,   # keep track of what was submitted
+        "uploaded_by":       uploaded_by,
+        "uploaded_at":       now,
+        "version":           version,
+        "version_num":       version_num,
+        "notes":             notes,
+        "converted":         converted,
+        "original_filename": filename,
     }
     _save_spec_meta(pid, spec_meta)
     return {
@@ -228,6 +230,7 @@ def save_spec(pid: str, filename: str, content: bytes,
         "version":     version,
         "version_num": version_num,
         "notes":       notes,
+        "converted":   converted,
         "format":      dest.suffix.lower().lstrip("."),
     }
 

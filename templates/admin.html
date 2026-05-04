@@ -694,7 +694,7 @@ function renderSpecsTable(specs){
       <td>
         <strong>${s.base_name||s.stem}</strong>
         <br><span style="font-size:11px;color:#94a3b8">${s.filename}</span>
-        ${s.filename.includes('_converted')?'<br><span style="font-size:10px;background:#fef9c3;color:#a16207;padding:1px 6px;border-radius:10px">converted</span>':''}
+        ${s.converted?'<br><span style="font-size:10px;background:#fef9c3;color:#a16207;padding:1px 6px;border-radius:10px">converted</span>':''}
       </td>
       <td><span class="badge badge-proj">${s.project_name}</span></td>
       <td style="text-align:center"><span style="font-size:13px;font-weight:700;color:${(s.version_num||1)>1?'#6366f1':'#64748b'}">v${s.version_num||1}</span></td>

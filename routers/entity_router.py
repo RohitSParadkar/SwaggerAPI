@@ -59,27 +59,28 @@ def _process_file(content: bytes, fname: str) -> tuple:
     if _is_postman(content):
         col     = json.loads(content)
         spec    = postman_converter.convert(col)
+        # Keep original filename, only change extension to .yaml
         base    = fname.rsplit(".", 1)[0] if "." in fname else fname
-        fname   = base + "_converted.yaml"
+        fname   = base + ".yaml"
         content = yaml.dump(spec, allow_unicode=True, sort_keys=False).encode("utf-8")
-        return fname, content
+        return fname, content, True   # converted=True → UI shows "converted" badge
 
     if ext == ".json":
         json.loads(content)
-        return fname, content
+        return fname, content, False
 
     if ext in (".yaml", ".yml"):
         yaml.safe_load(content)
-        return fname, content
+        return fname, content, False
 
     try:
         yaml.safe_load(content)
-        return fname + ".yaml", content
+        return fname + ".yaml", content, False
     except Exception:
         pass
     try:
         json.loads(content)
-        return fname + ".json", content
+        return fname + ".json", content, False
     except Exception:
         raise ValueError(f"Cannot parse '{fname}'")
 
@@ -156,7 +157,7 @@ async def entity_upload_spec(
         content = await f.read()
         fname   = f.filename or "upload"
         try:
-            fname, content = _process_file(content, fname)
+            fname, content, was_converted = _process_file(content, fname)
         except ValueError as e:
             raise HTTPException(status_code=422, detail=str(e))
 
@@ -168,6 +169,7 @@ async def entity_upload_spec(
             uploaded_by=current_user.get("username", "entity"),
             version=effective_version,
             notes=notes,
+            converted=was_converted,
         )
         uploaded.append(info)
     return {"uploaded": uploaded}
