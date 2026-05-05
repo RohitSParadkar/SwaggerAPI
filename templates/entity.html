@@ -3,47 +3,58 @@
 <head>
   <meta charset="UTF-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
-  <title>API Hub — My Projects</title>
+  <title>API Hub</title>
   <style>
     *{box-sizing:border-box;margin:0;padding:0}
-    body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#f1f5f9;color:#0f172a;font-size:14px}
-    .topbar{background:#0f172a;color:#fff;padding:0 1.5rem;height:54px;display:flex;align-items:center;gap:12px}
-    .topbar h1{font-size:15px;font-weight:600}
-    .topbar .sub{font-size:12px;opacity:.5;margin-left:4px}
-    .btn-logout{margin-left:auto;background:rgba(255,255,255,.1);border:none;color:#fff;padding:6px 13px;border-radius:6px;cursor:pointer;font-size:12px}
-    .wrap{max-width:980px;margin:1.5rem auto;padding:0 1rem}
-
-    /* ── Viewer card ── */
+    body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:#f1f5f9;color:#0f172a;font-size:14px;display:flex;height:100vh;overflow:hidden}
+    /* ── Sidebar ── */
+    .sidebar{position:fixed;top:0;left:0;width:220px;height:100vh;background:#0f172a;display:flex;flex-direction:column;z-index:10;flex-shrink:0}
+    .sidebar-logo{padding:1.25rem 1rem;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.08)}
+    .sidebar-logo .icon{width:32px;height:32px;background:#0ea5e9;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0}
+    .sidebar-logo .text{color:#fff;font-weight:600;font-size:14px;line-height:1.2}
+    .sidebar-logo .sub{color:rgba(255,255,255,.4);font-size:10px}
+    .nav-section{padding:.75rem 0 .25rem .75rem;font-size:10px;font-weight:600;color:rgba(255,255,255,.3);text-transform:uppercase;letter-spacing:.07em}
+    .nav-item{display:flex;align-items:center;gap:9px;padding:8px 12px;margin:1px 6px;border-radius:7px;cursor:pointer;color:rgba(255,255,255,.6);font-size:13px;transition:all .15s;text-decoration:none;border:none;background:none;width:calc(100% - 12px)}
+    .nav-item:hover{background:rgba(255,255,255,.07);color:#fff}
+    .nav-item.active{background:#0ea5e9;color:#fff}
+    .nav-item .ic{width:16px;text-align:center;flex-shrink:0}
+    .sidebar-bottom{margin-top:auto;padding:.75rem;border-top:1px solid rgba(255,255,255,.08)}
+    /* ── Main ── */
+    .main{margin-left:220px;flex:1;overflow-y:auto;height:100vh}
+    .main-inner{padding:1.5rem;max-width:960px}
+    .page{display:none}.page.active{display:block}
+    .page-title{font-size:18px;font-weight:700;margin-bottom:.25rem}
+    .page-sub{font-size:13px;color:#64748b;margin-bottom:1.5rem}
+    /* ── Cards ── */
     .card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:1.25rem;margin-bottom:1rem}
-    .card-title{font-weight:600;font-size:14px;margin-bottom:1rem}
-    .section-head{font-size:16px;font-weight:700;margin-bottom:.25rem}
-    .section-sub{font-size:13px;color:#64748b;margin-bottom:1.25rem}
-
-    /* ── Dropdown bar ── */
+    .card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px}
+    .card-title{font-weight:600;font-size:14px}
+    /* ── Forms ── */
+    .form-row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1rem}
+    .form-group{display:flex;flex-direction:column;gap:4px;flex:1;min-width:140px}
+    .form-group label{font-size:12px;font-weight:600;color:#374151}
+    .inp{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;background:#fff;outline:none;width:100%;transition:border-color .15s}
+    .inp:focus{border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.1)}
+    /* ── Dropdowns ── */
     .dd-bar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:1rem}
     .dd-group{display:flex;flex-direction:column;gap:4px;flex:1;min-width:160px}
     .dd-group label{font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em}
     .dd-group select{padding:8px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;background:#fff;color:#0f172a;outline:none;cursor:pointer;transition:border-color .15s}
-    .dd-group select:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+    .dd-group select:focus{border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.1)}
     .dd-group select:disabled{background:#f8fafc;color:#94a3b8;cursor:default}
     .arrow{align-self:flex-end;padding-bottom:10px;color:#94a3b8;font-size:14px}
+    /* ── Buttons ── */
     .btn{display:inline-flex;align-items:center;gap:5px;padding:8px 14px;border-radius:7px;font-size:13px;font-weight:500;cursor:pointer;border:1px solid #d1d5db;background:#fff;color:#0f172a;transition:all .15s;text-decoration:none;white-space:nowrap}
     .btn:hover{background:#f1f5f9}
-    .btn-indigo{background:#6366f1;color:#fff;border-color:#6366f1}
-    .btn-indigo:hover{background:#4f46e5}
-    .btn-indigo:disabled{background:#94a3b8;border-color:#94a3b8;cursor:default}
+    .btn-primary{background:#0ea5e9;color:#fff;border-color:#0ea5e9}.btn-primary:hover{background:#0284c7}
+    .btn-indigo{background:#6366f1;color:#fff;border-color:#6366f1}.btn-indigo:hover{background:#4f46e5}
+    .btn-indigo:disabled,.btn-primary:disabled{background:#94a3b8;border-color:#94a3b8;cursor:default}
+    .btn-danger{background:#fee2e2;color:#dc2626;border-color:#fecaca}.btn-danger:hover{background:#fecaca}
+    .btn-sm{padding:5px 10px;font-size:12px}
     .btn-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-
     /* ── Upload ── */
     .drop-zone{border:2px dashed #d1d5db;border-radius:8px;padding:1.25rem;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:1rem}
-    .drop-zone:hover,.drop-zone.drag{border-color:#6366f1;background:#eef2ff}
-    .upload-meta{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:1rem}
-    .meta-group{flex:1;min-width:140px}
-    .meta-group label{display:block;font-size:12px;font-weight:600;color:#374151;margin-bottom:4px}
-    .meta-group input{width:100%;padding:7px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:13px;outline:none;transition:border-color .15s}
-    .meta-group input:focus{border-color:#6366f1;box-shadow:0 0 0 3px rgba(99,102,241,.1)}
-    .upload-project-info{font-size:12px;color:#64748b;padding:6px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:1rem}
-
+    .drop-zone:hover,.drop-zone.drag{border-color:#0ea5e9;background:#f0f9ff}
     /* ── Tables ── */
     table{width:100%;border-collapse:collapse}
     th{text-align:left;font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;padding:8px 12px;border-bottom:1px solid #f1f5f9;background:#f8fafc}
@@ -55,32 +66,155 @@
     .badge-new{background:#dcfce7;color:#15803d}
     .badge-read{background:#dbeafe;color:#1d4ed8}
     .badge-write{background:#dcfce7;color:#15803d}
-
-    /* ── Empty / toast ── */
+    /* ── Ref doc format badges ── */
+    .fmt-pdf{background:#fee2e2;color:#991b1b}
+    .fmt-md{background:#d1fae5;color:#065f46}
+    .fmt-docx,.fmt-doc{background:#dbeafe;color:#1e40af}
+    .fmt-txt{background:#f1f5f9;color:#475569}
+    .fmt-img{background:#ede9fe;color:#5b21b6}
+    /* ── Toast ── */
+    .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#0f172a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:200}
+    .toast.show{opacity:1}.toast.err{background:#dc2626}
     .empty-state{text-align:center;padding:2rem;color:#94a3b8;font-size:13px}
-    .toast{position:fixed;bottom:1.5rem;right:1.5rem;background:#0f172a;color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;opacity:0;transition:opacity .25s;pointer-events:none;z-index:99}
-    .toast.show{opacity:1}
-    .toast.err{background:#dc2626}
-    .info-bar{background:#eff6ff;border:1px solid #bfdbfe;border-radius:6px;padding:8px 12px;font-size:12px;color:#1d4ed8;margin-bottom:1rem}
     .success-bar{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:9px 14px;font-size:13px;color:#15803d;margin-top:8px}
     .err-bar{background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:9px 14px;font-size:13px;color:#dc2626;margin-top:8px}
+    .info-pill{font-size:12px;color:#64748b;padding:6px 10px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:6px;margin-bottom:1rem}
+    /* ── API Explorer (same as before) ── */
+    .ex-backdrop{display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:100;backdrop-filter:blur(2px)}
+    .ex-backdrop.open{display:block}
+    .ex-drawer{position:fixed;top:0;right:0;width:min(820px,100vw);height:100vh;background:#fff;z-index:101;display:flex;flex-direction:column;transform:translateX(100%);transition:transform .28s cubic-bezier(.4,0,.2,1);box-shadow:-8px 0 40px rgba(0,0,0,.15)}
+    .ex-drawer.open{transform:translateX(0)}
+    .ex-head{background:#0f172a;color:#fff;padding:0 1.25rem;height:54px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+    .ex-head h2{font-size:15px;font-weight:600;flex:1}
+    .ex-close{background:rgba(255,255,255,.1);border:none;color:#fff;width:30px;height:30px;border-radius:6px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+    .ex-close:hover{background:rgba(255,255,255,.2)}
+    .ex-toolbar{padding:10px 14px;border-bottom:1px solid #e2e8f0;display:flex;gap:8px;flex-wrap:wrap;align-items:center;background:#fafbfc;flex-shrink:0}
+    .ex-toolbar input,.ex-toolbar select{padding:6px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;outline:none;background:#fff;color:#0f172a}
+    .ex-toolbar input{flex:1;min-width:140px}
+    .ex-toolbar input:focus,.ex-toolbar select:focus{border-color:#0ea5e9;box-shadow:0 0 0 3px rgba(14,165,233,.1)}
+    .ex-count{font-size:11px;color:#64748b;white-space:nowrap;margin-left:auto}
+    .ex-body{overflow-y:auto;flex:1}
+    .mb{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;font-family:monospace;min-width:52px;text-align:center}
+    .mb-GET{background:#dbeafe;color:#1e40af}.mb-POST{background:#dcfce7;color:#166534}
+    .mb-PUT{background:#fef9c3;color:#854d0e}.mb-PATCH{background:#ede9fe;color:#5b21b6}
+    .mb-DELETE{background:#fee2e2;color:#991b1b}.mb-OTHER{background:#f1f5f9;color:#475569}
+    .ep-item{border-bottom:1px solid #f1f5f9}.ep-item:last-child{border-bottom:none}
+    .ep-main{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;cursor:pointer;transition:background .12s}
+    .ep-main:hover{background:#f8fafc}
+    .ep-left{display:flex;align-items:center;gap:8px;flex:1;min-width:0}
+    .ep-path{font-family:"SF Mono","Fira Code",monospace;font-size:12px;color:#0f172a;word-break:break-all}
+    .ep-path .prm{color:#7c3aed}
+    .ep-summary-text{font-size:11px;color:#64748b;margin-top:2px}
+    .ep-tag-pill{font-size:10px;background:#ede9fe;color:#5b21b6;padding:1px 7px;border-radius:10px;white-space:nowrap;font-weight:500;flex-shrink:0}
+    .ep-doc-pill{font-size:10px;background:#f0f9ff;color:#0369a1;padding:1px 7px;border-radius:10px;white-space:nowrap;flex-shrink:0}
+    .ep-chevron{font-size:11px;color:#94a3b8;flex-shrink:0;margin-left:4px;transition:transform .15s}
+    .ep-chevron.open{transform:rotate(90deg)}
+    .ep-detail{display:none;padding:0 14px 12px 14px;background:#f8faff;border-top:1px solid #e2e8f0}
+    .ep-detail.open{display:block}
+    .ex-tabs{display:flex;border-bottom:1px solid #e2e8f0;flex-wrap:wrap}
+    .ex-tab{padding:6px 13px;font-size:11px;font-weight:600;cursor:pointer;color:#64748b;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all .12s;white-space:nowrap;user-select:none}
+    .ex-tab:hover{color:#0ea5e9}.ex-tab.active{color:#0ea5e9;border-bottom-color:#0ea5e9}
+    .ex-panel{display:none;padding:10px 0 4px}.ex-panel.active{display:block}
+    .ex-code-wrap{position:relative;margin-top:4px}
+    .ex-code{background:#0f172a;color:#e2e8f0;font-family:"SF Mono","Fira Code",monospace;font-size:11px;line-height:1.6;padding:10px 12px;border-radius:6px;overflow-x:auto;white-space:pre;max-height:240px;overflow-y:auto;display:block}
+    .ex-copy{position:absolute;top:6px;right:6px;background:rgba(255,255,255,.1);border:none;color:#e2e8f0;font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer}
+    .ex-copy:hover{background:rgba(255,255,255,.2)}
+    .ex-name{font-size:11px;font-weight:600;color:#374151;margin-bottom:3px;margin-top:8px}.ex-name:first-child{margin-top:0}
+    .ex-status{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;margin-right:4px}
+    .ex-s2{background:#dcfce7;color:#166534}.ex-s4{background:#fee2e2;color:#991b1b}.ex-s5{background:#fef9c3;color:#854d0e}.ex-sx{background:#f1f5f9;color:#475569}
+    .ex-params{width:100%;border-collapse:collapse;font-size:11px;margin-top:4px}
+    .ex-params th{padding:4px 8px;background:#f1f5f9;color:#64748b;font-size:10px;font-weight:600;text-transform:uppercase;text-align:left}
+    .ex-params td{padding:4px 8px;border-bottom:1px solid #f3f4f6;vertical-align:top}
+    .ex-params tr:last-child td{border-bottom:none}
+    .req-badge{font-size:9px;background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:8px;font-weight:600}
+    .in-badge{font-size:9px;background:#f1f5f9;color:#475569;padding:1px 5px;border-radius:8px}
+    .doc-group-head{padding:7px 14px;background:#f1f5f9;border-bottom:1px solid #e2e8f0;font-size:11px;font-weight:700;color:#374151;display:flex;align-items:center;gap:8px;cursor:pointer;user-select:none}
+    .doc-group-head:hover{background:#e8ecf0}
+    .dg-toggle{font-size:10px;color:#94a3b8;transition:transform .15s}.dg-toggle.open{transform:rotate(90deg)}
+    .dg-count{font-weight:400;color:#94a3b8}
+    .ex-empty{padding:3rem;text-align:center;color:#94a3b8;font-size:13px}
+
+    /* ── API Explorer table (matches admin) ── */
+    .ex-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+    .ex-table{width:100%;border-collapse:collapse;min-width:700px}
+    .ex-table th{text-align:left;font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;padding:9px 14px;border-bottom:2px solid #f1f5f9;background:#fafbfc;white-space:nowrap;position:sticky;top:0;z-index:1}
+    .ex-table td{padding:9px 14px;border-bottom:1px solid #f8fafc;vertical-align:middle}
+    .ex-table tr:hover td{background:#f8fafc}
+    .ex-table tr:last-child td{border-bottom:none}
+    .ex-doc-header{background:#f1f5f9!important;cursor:pointer}
+    .ex-group-toggle:hover td{background:#e8ecf0!important}
+    .method-badge{display:inline-block;font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;font-family:monospace;min-width:52px;text-align:center;letter-spacing:.03em}
+    .m-get{background:#dbeafe;color:#1e40af}.m-post{background:#dcfce7;color:#166534}
+    .m-put{background:#fef9c3;color:#854d0e}.m-patch{background:#ede9fe;color:#5b21b6}
+    .m-delete{background:#fee2e2;color:#991b1b}.m-head{background:#f1f5f9;color:#475569}
+    .ex-path{font-family:"SF Mono","Fira Code",monospace;font-size:12px;color:#0f172a;word-break:break-all}
+    .ex-path .param{color:#7c3aed}
+    .ex-summary{font-size:12px;color:#374151;max-width:300px}
+    .ex-tag-pill{font-size:10px;background:#ede9fe;color:#5b21b6;padding:2px 8px;border-radius:10px;white-space:nowrap;font-weight:500}
+    .ex-doc-pill{font-size:10px;background:#f0f9ff;color:#0369a1;padding:2px 8px;border-radius:10px;white-space:nowrap}
+    .ex-empty{text-align:center;padding:2.5rem;color:#94a3b8;font-size:13px}
+    .ep-toggle{background:none;border:none;cursor:pointer;font-size:11px;color:#6366f1;padding:2px 6px;border-radius:4px;font-weight:600;white-space:nowrap}
+    .ep-toggle:hover{background:#ede9fe}
+    .ex-examples-row td{padding:0!important;border-bottom:1px solid #e2e8f0}
+    .ex-examples-inner{padding:6px 12px 10px 32px;background:#f8faff}
+    .ex-ex-tabs{display:flex;gap:0;border-bottom:1px solid #e2e8f0;flex-wrap:wrap}
+    .ex-ex-tab{padding:6px 14px;font-size:11px;font-weight:600;cursor:pointer;color:#64748b;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap;transition:all .15s;user-select:none}
+    .ex-ex-tab:hover{color:#6366f1}.ex-ex-tab.active{color:#6366f1;border-bottom-color:#6366f1}
+    .ex-ex-panel{display:none;padding:10px 0 2px}.ex-ex-panel.active{display:block}
+    .ex-ex-name{font-size:11px;font-weight:600;color:#374151;margin-bottom:4px}
+    .ex-code-wrap{position:relative}
+    .ex-code{background:#0f172a;color:#e2e8f0;font-family:"SF Mono","Fira Code",monospace;font-size:11px;line-height:1.6;padding:10px 12px;border-radius:6px;overflow-x:auto;white-space:pre;max-height:260px;overflow-y:auto;display:block}
+    .ex-copy-code{position:absolute;top:6px;right:6px;background:rgba(255,255,255,.1);border:none;color:#e2e8f0;font-size:10px;padding:3px 8px;border-radius:4px;cursor:pointer}
+    .ex-copy-code:hover{background:rgba(255,255,255,.2)}
+    .ex-status-badge{display:inline-block;font-size:10px;font-weight:700;padding:1px 7px;border-radius:4px;margin-right:4px}
+    .ex-s-2xx{background:#dcfce7;color:#166534}.ex-s-4xx{background:#fee2e2;color:#991b1b}.ex-s-5xx{background:#fef9c3;color:#854d0e}.ex-s-other{background:#f1f5f9;color:#475569}
+    .ex-params-table{width:100%;border-collapse:collapse;font-size:11px;margin-top:4px}
+    .ex-params-table th{padding:4px 8px;text-align:left;background:#f1f5f9;color:#64748b;font-weight:600;font-size:10px;text-transform:uppercase}
+    .ex-params-table td{padding:4px 8px;border-bottom:1px solid #f3f4f6;vertical-align:top}
+    .ex-params-table tr:last-child td{border-bottom:none}
+    .ex-req-badge{font-size:9px;background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:8px;font-weight:600}
+    .ex-in-badge{font-size:9px;background:#f1f5f9;color:#475569;padding:1px 5px;border-radius:8px}
+    .ep-path{font-family:"SF Mono","Fira Code",monospace;font-size:12px;color:#0f172a;word-break:break-all}
+    .ep-summary{font-size:12px;color:#374151}
+    .ep-tag{font-size:10px;background:#f1f5f9;color:#475569;padding:1px 6px;border-radius:10px}
+    .ep-table{width:100%;border-collapse:collapse}
+    .ep-table td{padding:4px 8px;border-bottom:1px solid #f8fafc;vertical-align:middle}
+    .ep-inner{padding:6px 12px 10px 12px;background:#f8faff}
   </style>
 </head>
 <body>
-<div class="topbar">
-  <div style="font-size:18px">⚡</div>
-  <h1>API Hub <span class="sub">— My Projects</span></h1>
-  <button class="btn-logout" onclick="logout()">Logout</button>
-</div>
 
-<div class="wrap">
+<!-- ── SIDEBAR ── -->
+<aside class="sidebar">
+  <div class="sidebar-logo">
+    <div class="icon">⚡</div>
+    <div><div class="text">API Hub</div><div class="sub" id="sb-username">Loading…</div></div>
+  </div>
+  <nav style="flex:1;overflow-y:auto;padding:.5rem 0">
+    <div class="nav-section">Browse</div>
+    <button class="nav-item active" id="nav-contracts" onclick="showPage('contracts',this)"><span class="ic">📄</span> API Contracts</button>
+    <button class="nav-item" id="nav-explorer"  onclick="showPage('explorer',this)"><span class="ic">🔍</span> API Explorer</button>
+    <div class="nav-section">Reference</div>
+    <button class="nav-item" id="nav-refdocs"   onclick="showPage('refdocs',this)"><span class="ic">📚</span> Reference Docs</button>
+    <div class="nav-section">View</div>
+    <a class="nav-item" href="/docs" target="_blank"><span class="ic">🔗</span> Swagger UI ↗</a>
+  </nav>
+  <div class="sidebar-bottom">
+    <button class="nav-item" onclick="logout()" style="width:100%"><span class="ic">↩</span> Logout</button>
+  </div>
+</aside>
 
-  <!-- ── VIEW SWAGGER UI ── -->
-  <div class="section-head">API Documentation</div>
-  <p class="section-sub">Select a project, document and version to open in Swagger UI</p>
+<!-- ── MAIN CONTENT ── -->
+<div class="main">
+<div class="main-inner">
+
+<!-- ══ PAGE: API CONTRACTS ══ -->
+<div class="page active" id="page-contracts">
+  <div class="page-title">API Contracts</div>
+  <div class="page-sub">Browse documents and open in Swagger UI</div>
 
   <div class="card">
-    <div class="card-title">📖 Browse API Contracts</div>
+    <div class="card-title" style="margin-bottom:1rem">📖 Browse & Open</div>
     <div class="dd-bar">
       <div class="dd-group">
         <label>Project</label>
@@ -106,54 +240,47 @@
     <div class="btn-row">
       <button class="btn btn-indigo" id="open-swagger-btn" disabled onclick="openSwagger()">Open in Swagger UI ↗</button>
       <button class="btn" id="view-json-btn" style="display:none" onclick="openRawSpec()">View Raw JSON ↗</button>
+      <button class="btn btn-primary" id="explorer-btn" style="display:none" onclick="openExplorerPage()">🔍 API Explorer</button>
       <span id="version-badge" style="display:none"></span>
     </div>
   </div>
 
-  <!-- ── UPLOAD ── -->
-  <div style="margin-top:1.5rem" id="upload-section" style="display:none">
-    <div class="section-head">Upload API Contracts</div>
-    <p class="section-sub">You have <strong>write access</strong> to some projects — you can upload API contracts to those projects.</p>
+  <!-- Upload (write-permission users only) -->
+  <div id="upload-section" style="display:none">
+    <div class="page-title" style="font-size:15px;margin-top:.5rem">Upload API Contract</div>
+    <p class="page-sub" style="margin-top:.25rem">You have write access — upload YAML, JSON or Postman collections.</p>
+    <div class="card">
+      <div class="form-row">
+        <div class="form-group">
+          <label>Target Project *</label>
+          <select class="inp" id="up-project" onchange="onUploadProjectChange()">
+            <option value="">— select project —</option>
+          </select>
+        </div>
+        <div class="form-group" style="max-width:150px">
+          <label>Version (optional)</label>
+          <input class="inp" id="up-version" placeholder="e.g. 2.1.0">
+        </div>
+        <div class="form-group">
+          <label>Notes (optional)</label>
+          <input class="inp" id="up-notes" placeholder="e.g. Added payment endpoints">
+        </div>
+      </div>
+      <div id="upload-project-hint" class="info-pill" style="display:none"></div>
+      <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()"
+           ondragover="dv(event,true)" ondragleave="dv(event,false)" ondrop="dd(event)">
+        <div style="font-size:22px">⬆</div>
+        <strong style="font-size:13px">Drop YAML / JSON / Postman Collection here</strong>
+        <p style="font-size:12px;color:#94a3b8;margin-top:3px">Postman → auto-converted to OpenAPI · Same filename → new version auto-created</p>
+      </div>
+      <input type="file" id="fi" accept=".yaml,.yml,.json" multiple style="display:none" onchange="uploadSpecs(this.files)">
+      <div id="upload-feedback"></div>
+    </div>
   </div>
 
-  <div class="card" id="upload-card" style="display:none">
-    <div class="card-title">⬆ Upload to Project</div>
-
-    <div class="dd-bar" style="margin-bottom:.75rem">
-      <div class="dd-group">
-        <label>Target Project *</label>
-        <select id="up-project" onchange="onUploadProjectChange()">
-          <option value="">— select project —</option>
-        </select>
-      </div>
-    </div>
-
-    <div id="upload-project-hint" class="upload-project-info" style="display:none"></div>
-
-    <div class="upload-meta">
-      <div class="meta-group">
-        <label>Version label (optional)</label>
-        <input id="up-version" placeholder="e.g. 2.1.0 — leave blank to auto-assign">
-      </div>
-      <div class="meta-group">
-        <label>Notes (optional)</label>
-        <input id="up-notes" placeholder="e.g. Added payment endpoints">
-      </div>
-    </div>
-
-    <div class="drop-zone" id="dz" onclick="document.getElementById('fi').click()"
-         ondragover="dv(event,true)" ondragleave="dv(event,false)" ondrop="dd(event)">
-      <div style="font-size:22px">⬆</div>
-      <strong style="font-size:13px">Drop YAML / JSON / Postman Collection here</strong>
-      <p style="font-size:12px;color:#94a3b8;margin-top:3px">Postman collections are auto-converted to OpenAPI · Same filename → new version created automatically</p>
-    </div>
-    <input type="file" id="fi" accept=".yaml,.yml,.json" multiple style="display:none" onchange="uploadSpecs(this.files)">
-    <div id="upload-feedback"></div>
-  </div>
-
-  <!-- ── SPECS TABLE ── -->
+  <!-- Specs table for selected project -->
   <div class="card" id="specs-card" style="display:none">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:8px">
+    <div class="card-header">
       <span class="card-title" id="specs-card-title">API Contracts</span>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <select id="filter-document" onchange="filterSpecsTable()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;min-width:160px">
@@ -162,223 +289,267 @@
         <select id="filter-version" onchange="filterSpecsTable()" style="padding:6px 10px;border:1px solid #d1d5db;border-radius:7px;font-size:12px;min-width:130px">
           <option value="">All versions</option>
         </select>
-        <button class="btn" onclick="refreshSpecs()">↺ Refresh</button>
+        <button class="btn btn-sm" onclick="refreshSpecs()">↺ Refresh</button>
       </div>
     </div>
     <div id="specs-table"><div class="empty-state">Loading…</div></div>
   </div>
-
 </div>
-<div class="toast" id="toast"></div>
 
+<!-- ══ PAGE: API EXPLORER ══ -->
+<div class="page" id="page-explorer">
+  <div class="page-title">API Explorer</div>
+  <div class="page-sub">Browse all endpoints across every document in a project</div>
+
+  <div class="card" style="margin-bottom:1rem">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <label style="font-size:12px;font-weight:600;color:#374151;white-space:nowrap">Select project</label>
+      <select class="inp" id="ex-project" onchange="loadExplorer()" style="min-width:220px;max-width:320px">
+        <option value="">— choose a project —</option>
+      </select>
+      <span id="ex-loading" style="font-size:12px;color:#94a3b8;display:none">⏳ Loading…</span>
+      <span id="ex-count" style="font-size:12px;color:#64748b;display:none"></span>
+      <span style="flex:1"></span>
+      <button class="btn btn-sm" id="ex-copy-btn" onclick="copyEndpoints()" style="display:none">⎘ Copy as Markdown</button>
+      <button class="btn btn-sm" id="ex-export-btn" onclick="exportEndpoints()" style="display:none">↓ Export CSV</button>
+    </div>
+  </div>
+
+  <div class="card" id="ex-filters-card" style="margin-bottom:1rem;display:none">
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <div style="position:relative;flex:1;min-width:180px">
+        <input class="inp" id="ex-search" placeholder="🔍  Search path or summary…" oninput="applyExFilters()" style="padding-left:12px">
+      </div>
+      <select class="inp" id="ex-method" onchange="applyExFilters()" style="width:120px">
+        <option value="">All methods</option>
+        <option>GET</option><option>POST</option><option>PUT</option>
+        <option>PATCH</option><option>DELETE</option>
+      </select>
+      <select class="inp" id="ex-tag" onchange="applyExFilters()" style="min-width:140px">
+        <option value="">All tags / folders</option>
+      </select>
+      <select class="inp" id="ex-doc" onchange="applyExFilters()" style="min-width:160px">
+        <option value="">All documents</option>
+      </select>
+      <button class="btn btn-sm" onclick="clearExFilters()">✕ Clear filters</button>
+    </div>
+  </div>
+
+  <div class="card" style="padding:0;overflow:hidden">
+    <div id="ex-table"><div class="empty-state" style="padding:3rem">Select a project above to view all its API endpoints</div></div>
+  </div>
+</div>
+
+<!-- ══ PAGE: REFERENCE DOCS ══ -->
+<div class="page" id="page-refdocs">
+  <div class="page-title">Reference Docs</div>
+  <div class="page-sub">PDFs, Markdown files and other documentation linked to your API projects</div>
+
+  <!-- Upload ref (write users only) -->
+  <div id="ref-upload-section" style="display:none">
+    <div class="card">
+      <div class="card-title" style="margin-bottom:1rem">⬆ Upload Reference Document</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label>Project *</label>
+          <select class="inp" id="ref-project" onchange="onRefProjectChange()">
+            <option value="">— select project —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Link to API spec (optional)</label>
+          <select class="inp" id="ref-linked-spec" disabled>
+            <option value="">— select spec —</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Description (optional)</label>
+          <input class="inp" id="ref-description" placeholder="e.g. API integration guide">
+        </div>
+      </div>
+      <div class="drop-zone" id="ref-dz" onclick="document.getElementById('ref-fi').click()"
+           ondragover="rdv(event,true)" ondragleave="rdv(event,false)" ondrop="rdd(event)">
+        <div style="font-size:22px">📎</div>
+        <strong style="font-size:13px">Drop PDF / Markdown / Word / TXT here</strong>
+        <p style="font-size:12px;color:#94a3b8;margin-top:3px">Accepted: .pdf  .md  .txt  .docx  .doc  .png  .jpg</p>
+      </div>
+      <input type="file" id="ref-fi" accept=".pdf,.md,.txt,.docx,.doc,.png,.jpg,.jpeg" multiple style="display:none" onchange="uploadRefs(this.files)">
+      <div id="ref-upload-feedback"></div>
+    </div>
+  </div>
+
+  <!-- Browse refs -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">All Reference Documents</span>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <select class="inp" id="ref-view-project" onchange="loadRefDocs()" style="min-width:200px">
+          <option value="">— select project —</option>
+        </select>
+        <button class="btn btn-sm" onclick="loadRefDocs()">↺ Refresh</button>
+      </div>
+    </div>
+    <div id="ref-table"><div class="empty-state">Select a project to view its reference documents</div></div>
+  </div>
+</div>
+
+</div><!-- main-inner -->
+</div><!-- main -->
+
+
+<div class="toast" id="toast"></div>
 <script>
 const token = () => localStorage.getItem('token');
 if(!token()) window.location='/login.html';
 
-let allProjects = [];
-let navData     = {};   // pid → { documents: [{base_name, versions:[...]}] }
-let currentSpecsProjectId = null;
-let allSpecsForProject = [];
+let allProjects=[], navData={}, currentSpecsProjectId=null, allSpecsForProject=[];
+let _fpAll=[], _fpFiltered=[], _fpPid='', _fpCollapsed={};
+
+// ── Page routing ──────────────────────────────────────────────────────────────
+function showPage(name, btn){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(b=>b.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  if(btn) btn.classList.add('active');
+  if(name==='explorer') initExplorer();
+  if(name==='refdocs')  initRefDocs();
+}
 
 async function api(method, url, body){
-  const r = await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:body?JSON.stringify(body):undefined});
+  const r=await fetch(url,{method,headers:{'Content-Type':'application/json','Authorization':'Bearer '+token()},body:body?JSON.stringify(body):undefined});
   if(r.status===401){window.location='/login.html';return null;}
   return r.ok?(r.status===204?null:r.json()):r.json().then(d=>Promise.reject(d.detail||'Error'));
 }
-
 function toast(msg,err=false){
   const el=document.getElementById('toast'); el.textContent=msg;
   el.className='toast show'+(err?' err':'');
   setTimeout(()=>el.classList.remove('show'),3500);
 }
 
-// ── Init ─────────────────────────────────────────────────────────────────────
+// ── Init ──────────────────────────────────────────────────────────────────────
 async function init(){
-  allProjects = await api('GET','/api/entity/projects') || [];
-  // allProjects now includes `permission` field: "read" or "write"
-  const writableProjects = allProjects.filter(p=>p.permission==='write');
-  const hasWrite = writableProjects.length > 0;
+  allProjects=await api('GET','/api/entity/projects')||[];
+  const me=allProjects[0]; // username from first project call side-effect
+  // Try to get username from JWT
+  try{ const p=JSON.parse(atob(token().split('.')[1])); document.getElementById('sb-username').textContent=p.username||p.sub||'Entity'; }catch(e){}
 
-  // Show upload section only if user has write access to at least one project
-  document.getElementById('upload-section').style.display = hasWrite ? '' : 'none';
-  document.getElementById('upload-card').style.display    = hasWrite ? '' : 'none';
+  const writableProjects=allProjects.filter(p=>p.permission==='write');
+  const hasWrite=writableProjects.length>0;
+  document.getElementById('upload-section').style.display=hasWrite?'':'none';
+  document.getElementById('ref-upload-section').style.display=hasWrite?'':'none';
 
   populateProjectDropdowns(writableProjects);
-  if(allProjects.length===1){
-    document.getElementById('view-project').value = allProjects[0].id;
-    onViewProjectChange();
-  }
-  if(writableProjects.length===1){
-    document.getElementById('up-project').value = writableProjects[0].id;
-    onUploadProjectChange();
-  }
+  if(allProjects.length===1){ document.getElementById('view-project').value=allProjects[0].id; onViewProjectChange(); }
+  if(writableProjects.length===1){ document.getElementById('up-project').value=writableProjects[0].id; onUploadProjectChange(); }
 }
 
 function populateProjectDropdowns(writableProjects){
-  // View dropdown — all accessible projects
-  const viewSel = document.getElementById('view-project');
-  viewSel.innerHTML = '<option value="">— select project —</option>';
-  allProjects.forEach(p=>{
-    const o=document.createElement('option');
-    o.value=p.id;
-    o.textContent=p.name + (p.permission==='write'?' ✏':'');
-    viewSel.appendChild(o);
-  });
-  // Upload dropdown — write-only projects
-  const upSel = document.getElementById('up-project');
-  upSel.innerHTML = '<option value="">— select project —</option>';
-  (writableProjects||[]).forEach(p=>{
-    const o=document.createElement('option');
-    o.value=p.id; o.textContent=p.name;
-    upSel.appendChild(o);
-  });
+  const viewSel=document.getElementById('view-project');
+  viewSel.innerHTML='<option value="">— select project —</option>';
+  allProjects.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name+(p.permission==='write'?' ✏':''); viewSel.appendChild(o); });
+  const upSel=document.getElementById('up-project');
+  upSel.innerHTML='<option value="">— select project —</option>';
+  (writableProjects||[]).forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; upSel.appendChild(o); });
+  const refSel=document.getElementById('ref-project');
+  refSel.innerHTML='<option value="">— select project —</option>';
+  (writableProjects||[]).forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; refSel.appendChild(o); });
 }
 
-// ── VIEW dropdowns ────────────────────────────────────────────────────────────
+// ── View dropdowns (Contracts page) ──────────────────────────────────────────
 async function onViewProjectChange(){
-  const pid = document.getElementById('view-project').value;
-  const ddD = document.getElementById('view-document');
-  const ddV = document.getElementById('view-version');
-  ddD.innerHTML='<option value="">— select document —</option>';
-  ddV.innerHTML='<option value="">— select version —</option>';
+  const pid=document.getElementById('view-project').value;
+  const ddD=document.getElementById('view-document'); const ddV=document.getElementById('view-version');
+  ddD.innerHTML='<option value="">— select document —</option>'; ddV.innerHTML='<option value="">— select version —</option>';
   ddD.disabled=true; ddV.disabled=true;
   document.getElementById('open-swagger-btn').disabled=true;
   document.getElementById('view-json-btn').style.display='none';
+  document.getElementById('explorer-btn').style.display='none';
   document.getElementById('version-badge').style.display='none';
   if(!pid) return;
-
-  let docs = navData[pid];
-  if(!docs){
-    docs = await api('GET',`/api/entity/projects/${pid}/documents`) || [];
-    navData[pid] = docs;
-  }
-  if(!docs.length){ toast('No documents in this project yet',false); return; }
-
-  docs.forEach(doc=>{
-    const o=document.createElement('option');
-    o.value=doc.base_name;
-    o.textContent=doc.base_name+(doc.versions.length>1?` (${doc.versions.length} versions)`:'');
-    ddD.appendChild(o);
-  });
+  let docs=navData[pid]; if(!docs){ docs=await api('GET',`/api/entity/projects/${pid}/documents`)||[]; navData[pid]=docs; }
+  if(!docs.length){ toast('No documents in this project yet'); return; }
+  docs.forEach(doc=>{ const o=document.createElement('option'); o.value=doc.base_name; o.textContent=doc.base_name+(doc.versions.length>1?` (${doc.versions.length} versions)`:''); ddD.appendChild(o); });
   ddD.disabled=false;
   if(docs.length===1){ ddD.value=docs[0].base_name; onViewDocumentChange(); }
 }
-
 function onViewDocumentChange(){
-  const pid  = document.getElementById('view-project').value;
-  const base = document.getElementById('view-document').value;
-  const ddV  = document.getElementById('view-version');
-  ddV.innerHTML='<option value="">— select version —</option>';
-  ddV.disabled=true;
+  const pid=document.getElementById('view-project').value; const base=document.getElementById('view-document').value;
+  const ddV=document.getElementById('view-version');
+  ddV.innerHTML='<option value="">— select version —</option>'; ddV.disabled=true;
   document.getElementById('open-swagger-btn').disabled=true;
   document.getElementById('view-json-btn').style.display='none';
+  document.getElementById('explorer-btn').style.display='none';
   document.getElementById('version-badge').style.display='none';
   if(!base) return;
-
-  const docs = navData[pid] || [];
-  const doc  = docs.find(d=>d.base_name===base);
-  if(!doc) return;
-
-  doc.versions.forEach(v=>{
-    const o=document.createElement('option');
-    o.value=v.filename;
-    o.textContent=`v${v.version_num} — ${v.version}`+(v===doc.versions[doc.versions.length-1]?'  ★ latest':'');
-    ddV.appendChild(o);
-  });
+  const docs=navData[pid]||[]; const doc=docs.find(d=>d.base_name===base); if(!doc) return;
+  doc.versions.forEach(v=>{ const o=document.createElement('option'); o.value=v.filename; o.textContent=`v${v.version_num} — ${v.version}`+(v===doc.versions[doc.versions.length-1]?'  ★ latest':''); ddV.appendChild(o); });
   ddV.disabled=false;
-  // default to latest
-  const latest = doc.versions[doc.versions.length-1];
-  if(latest){ ddV.value=latest.filename; onVersionSelect(pid,latest); }
+  const latest=doc.versions[doc.versions.length-1]; if(latest){ ddV.value=latest.filename; onVersionSelect(pid,latest); }
 }
-
-document.getElementById('view-version').addEventListener('change', function(){
-  const pid  = document.getElementById('view-project').value;
-  const base = document.getElementById('view-document').value;
-  const docs = navData[pid] || [];
-  const doc  = docs.find(d=>d.base_name===base);
-  if(!doc) return;
-  const v = doc.versions.find(x=>x.filename===this.value);
-  if(v) onVersionSelect(pid,v);
+document.getElementById('view-version').addEventListener('change',function(){
+  const pid=document.getElementById('view-project').value; const base=document.getElementById('view-document').value;
+  const doc=(navData[pid]||[]).find(d=>d.base_name===base); if(!doc) return;
+  const v=doc.versions.find(x=>x.filename===this.value); if(v) onVersionSelect(pid,v);
 });
-
 function onVersionSelect(pid,v){
   document.getElementById('open-swagger-btn').disabled=false;
   document.getElementById('view-json-btn').style.display='inline-flex';
-  const badge=document.getElementById('version-badge');
-  badge.style.display='inline-block';
+  document.getElementById('explorer-btn').style.display='inline-flex';
+  const badge=document.getElementById('version-badge'); badge.style.display='inline-block';
   badge.innerHTML=`<span class="badge badge-ver">v${v.version_num} — ${v.version}</span> <span style="font-size:12px;color:#64748b">${v.filename}</span>`;
-  // also load specs table for this project
   loadSpecsTable(pid);
 }
+function openSwagger(){ window.open('/docs','_blank'); }
+function openRawSpec(){ const pid=document.getElementById('view-project').value; const file=document.getElementById('view-version').value; if(!pid||!file) return; window.open(`/api/entity/projects/${pid}/specs/${file}?token=${token()}`,'_blank'); }
 
-function openSwagger(){
-  const pid  = document.getElementById('view-project').value;
-  const file = document.getElementById('view-version').value;
-  if(!pid||!file) return;
-  const url = `/docs?project=${pid}&spec=${file}&token=${token()}`;
-  window.open('/docs','_blank');
-}
-
-function openRawSpec(){
-  const pid  = document.getElementById('view-project').value;
-  const file = document.getElementById('view-version').value;
-  if(!pid||!file) return;
-  window.open(`/api/entity/projects/${pid}/specs/${file}?token=${token()}`,'_blank');
-}
-
-// ── UPLOAD project select ─────────────────────────────────────────────────────
+// ── Upload API contract ───────────────────────────────────────────────────────
 function onUploadProjectChange(){
-  const pid = document.getElementById('up-project').value;
-  const hint = document.getElementById('upload-project-hint');
+  const pid=document.getElementById('up-project').value; const hint=document.getElementById('upload-project-hint');
   if(!pid){ hint.style.display='none'; return; }
-  const proj = allProjects.find(p=>p.id===pid);
-  hint.style.display='block';
+  const proj=allProjects.find(p=>p.id===pid); hint.style.display='block';
   hint.innerHTML=`Uploading to: <strong>${proj?proj.name:pid}</strong> <span class="badge badge-write" style="font-size:11px;vertical-align:middle">write</span> — same filename → new version auto-created.`;
   loadSpecsTable(pid);
 }
+function dv(e,on){ e.preventDefault(); document.getElementById('dz').classList.toggle('drag',on); }
+function dd(e){ e.preventDefault(); document.getElementById('dz').classList.remove('drag'); uploadSpecs(e.dataTransfer.files); }
+async function uploadSpecs(files){
+  const pid=document.getElementById('up-project').value; const version=document.getElementById('up-version').value.trim(); const notes=document.getElementById('up-notes').value.trim(); const fb=document.getElementById('upload-feedback');
+  if(!pid){ toast('Select a project first',true); return; }
+  const fd=new FormData(); Array.from(files).forEach(f=>fd.append('files',f)); if(version) fd.append('version',version); if(notes) fd.append('notes',notes);
+  fb.innerHTML='<div style="color:#6366f1;font-size:13px;padding:8px 0">Uploading…</div>';
+  try{
+    const r=await fetch(`/api/entity/projects/${pid}/specs`,{method:'POST',headers:{'Authorization':'Bearer '+token()},body:fd}); const d=await r.json(); if(!r.ok) throw d.detail;
+    const items=d.uploaded.map(u=>`<strong>${u.base_name}</strong> → <span class="badge badge-ver" style="font-size:11px">v${u.version_num} — ${u.version}</span>${u.version_num>1?' <span class="badge badge-new" style="font-size:11px">new version</span>':''}` ).join('<br>');
+    fb.innerHTML=`<div class="success-bar">Uploaded:<br>${items}</div>`; setTimeout(()=>fb.innerHTML='',8000); toast(`${d.uploaded.length} file(s) uploaded`);
+    delete navData[pid]; _exPid=''; _fpPid=''; loadSpecsTable(pid);
+  }catch(e){ fb.innerHTML=`<div class="err-bar">${e}</div>`; toast(e||'Upload failed',true); }
+}
 
-// ── Specs table (filtered) ────────────────────────────────────────────────────
+// ── Specs table ───────────────────────────────────────────────────────────────
 async function loadSpecsTable(pid){
-  if(!pid) return;
-  currentSpecsProjectId = pid;
-  const proj = allProjects.find(p=>p.id===pid);
+  if(!pid) return; currentSpecsProjectId=pid;
+  const proj=allProjects.find(p=>p.id===pid);
   document.getElementById('specs-card').style.display='block';
   document.getElementById('specs-card-title').textContent=(proj?proj.name:pid)+' — API Contracts';
-
-  allSpecsForProject = await api('GET',`/api/entity/projects/${pid}/specs`) || [];
-  populateSpecFilters();
-  filterSpecsTable();
+  allSpecsForProject=await api('GET',`/api/entity/projects/${pid}/specs`)||[];
+  populateSpecFilters(); filterSpecsTable();
 }
-
 function populateSpecFilters(){
-  const fd = document.getElementById('filter-document');
-  const fv = document.getElementById('filter-version');
+  const fd=document.getElementById('filter-document'); const fv=document.getElementById('filter-version');
   const curD=fd.value, curV=fv.value;
-  fd.innerHTML='<option value="">All documents</option>';
-  fv.innerHTML='<option value="">All versions</option>';
-  const bases=[...new Set(allSpecsForProject.map(s=>s.base_name))];
-  bases.forEach(b=>{ const o=document.createElement('option');o.value=b;o.textContent=b;fd.appendChild(o); });
-  const vers=[...new Set(allSpecsForProject.map(s=>s.version_num))].sort((a,b)=>a-b);
-  vers.forEach(n=>{ const o=document.createElement('option');o.value=n;o.textContent=`v${n}`;fv.appendChild(o); });
-  if(curD) fd.value=curD;
-  if(curV) fv.value=curV;
+  fd.innerHTML='<option value="">All documents</option>'; fv.innerHTML='<option value="">All versions</option>';
+  [...new Set(allSpecsForProject.map(s=>s.base_name))].forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; fd.appendChild(o); });
+  [...new Set(allSpecsForProject.map(s=>s.version_num))].sort((a,b)=>a-b).forEach(n=>{ const o=document.createElement('option'); o.value=n; o.textContent=`v${n}`; fv.appendChild(o); });
+  if(curD) fd.value=curD; if(curV) fv.value=curV;
 }
-
 function filterSpecsTable(){
-  const fd = document.getElementById('filter-document').value;
-  const fv = document.getElementById('filter-version').value;
-  const filtered = allSpecsForProject.filter(s=>
-    (!fd||s.base_name===fd) && (!fv||String(s.version_num)===fv)
-  );
-  renderSpecsTable(filtered);
+  const fd=document.getElementById('filter-document').value; const fv=document.getElementById('filter-version').value;
+  renderSpecsTable(allSpecsForProject.filter(s=>(!fd||s.base_name===fd)&&(!fv||String(s.version_num)===fv)));
 }
-
 function renderSpecsTable(specs){
   const el=document.getElementById('specs-table');
   if(!specs.length){ el.innerHTML='<div class="empty-state">No specs match the filter.</div>'; return; }
-  el.innerHTML=`<table><thead><tr>
-    <th>Document</th><th>Version</th><th>Format</th><th>Uploaded by</th><th>Notes</th><th>Size</th><th></th>
-  </tr></thead><tbody>
+  el.innerHTML=`<table><thead><tr><th>Document</th><th>Version</th><th>Format</th><th>Uploaded by</th><th>Notes</th><th>Size</th><th></th></tr></thead><tbody>
     ${specs.map(s=>`<tr>
       <td><strong>${s.base_name}</strong><br><span style="font-size:11px;color:#94a3b8">${s.filename}</span></td>
       <td><span class="badge badge-ver">v${s.version_num} — ${s.version}</span></td>
@@ -386,59 +557,455 @@ function renderSpecsTable(specs){
       <td style="font-size:12px;color:#64748b">${s.uploaded_by}</td>
       <td style="font-size:12px;color:#94a3b8;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.notes||'—'}</td>
       <td style="font-size:12px;color:#94a3b8">${s.size<1024?s.size+'B':Math.round(s.size/1024)+'KB'}</td>
-      <td><a href="/api/entity/projects/${currentSpecsProjectId}/specs/${s.filename}?token=${token()}" target="_blank" class="btn" style="padding:4px 10px;font-size:12px">View JSON ↗</a></td>
+      <td><a href="/api/entity/projects/${currentSpecsProjectId}/specs/${s.filename}?token=${token()}" target="_blank" class="btn btn-sm">View JSON ↗</a></td>
     </tr>`).join('')}
   </tbody></table>`;
 }
-
 async function refreshSpecs(){
-  if(currentSpecsProjectId){
-    // clear cache so documents dropdown refreshes too
-    delete navData[currentSpecsProjectId];
-    await loadSpecsTable(currentSpecsProjectId);
-    // refresh view dropdowns if same project is selected
-    const vPid = document.getElementById('view-project').value;
-    if(vPid===currentSpecsProjectId){
-      delete navData[vPid];
-      await onViewProjectChange();
-    }
+  if(currentSpecsProjectId){ delete navData[currentSpecsProjectId]; await loadSpecsTable(currentSpecsProjectId);
+    const vPid=document.getElementById('view-project').value; if(vPid===currentSpecsProjectId){ delete navData[vPid]; await onViewProjectChange(); } }
+}
+
+// ── API Explorer (drawer, from contracts page) ────────────────────────────────
+async function openExplorer(){
+  const pid=document.getElementById('view-project').value; if(!pid) return;
+  const proj=allProjects.find(p=>p.id===pid);
+  document.getElementById('ex-title').textContent=(proj?proj.name+' — ':'')+'API Explorer';
+  document.getElementById('ex-backdrop').classList.add('open'); document.getElementById('ex-drawer').classList.add('open');
+  document.body.style.overflow='hidden';
+  if(_exPid===pid&&_exAll.length){ applyFilters(); return; }
+  _exPid=pid; _exAll=[]; _exCollapsed={}; document.getElementById('ex-body').innerHTML='<div class="ex-empty">⏳ Loading…</div>';
+  document.getElementById('ex-head-count').textContent=''; document.getElementById('ex-count').textContent='';
+  document.getElementById('ex-search').value=''; document.getElementById('ex-method').value='';
+  document.getElementById('ex-tag').innerHTML='<option value="">All tags</option>'; document.getElementById('ex-doc').innerHTML='<option value="">All documents</option>';
+  try{
+    const specs=await api('GET',`/api/entity/projects/${pid}/specs`)||[];
+    if(!specs.length){ document.getElementById('ex-body').innerHTML='<div class="ex-empty">No API contracts yet.</div>'; return; }
+    const results=await Promise.all(specs.map(async s=>{ try{ const eps=await api('GET',`/api/entity/projects/${pid}/specs/${s.filename}/endpoints`); return (eps||[]).map(e=>({...e,document:s.base_name||s.stem,filename:s.filename,version_num:s.version_num,version:s.version})); }catch(_){ return []; } }));
+    _exAll=results.flat();
+    if(!_exAll.length){ document.getElementById('ex-body').innerHTML='<div class="ex-empty">No endpoints found.</div>'; return; }
+    const tagSel=document.getElementById('ex-tag'); [...new Set(_exAll.map(e=>e.tag).filter(Boolean))].sort().forEach(t=>{ const o=document.createElement('option'); o.value=t; o.textContent=t; tagSel.appendChild(o); });
+    const docSel=document.getElementById('ex-doc'); [...new Set(_exAll.map(e=>e.document))].sort().forEach(d=>{ const o=document.createElement('option'); o.value=d; o.textContent=d; docSel.appendChild(o); });
+    applyFilters();
+  }catch(e){ document.getElementById('ex-body').innerHTML=`<div class="ex-empty" style="color:#dc2626">Error: ${e}</div>`; }
+}
+function closeExplorer(){ document.getElementById('ex-backdrop').classList.remove('open'); document.getElementById('ex-drawer').classList.remove('open'); document.body.style.overflow=''; }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closeExplorer(); });
+function applyFilters(){
+  const search=document.getElementById('ex-search').value.trim().toLowerCase(); const method=document.getElementById('ex-method').value; const tag=document.getElementById('ex-tag').value; const doc=document.getElementById('ex-doc').value;
+  _exFiltered=_exAll.filter(e=>(!method||e.method===method)&&(!tag||e.tag===tag)&&(!doc||e.document===doc)&&(!search||e.path.toLowerCase().includes(search)||(e.summary||'').toLowerCase().includes(search)));
+  document.getElementById('ex-count').textContent=`${_exFiltered.length} / ${_exAll.length} endpoints`; document.getElementById('ex-head-count').textContent=`${_exFiltered.length} endpoint${_exFiltered.length===1?'':`s`}`;
+  renderExBody('ex-body',_exFiltered,_exCollapsed,'ex');
+}
+function clearFilters(){ document.getElementById('ex-search').value=''; document.getElementById('ex-method').value=''; document.getElementById('ex-tag').value=''; document.getElementById('ex-doc').value=''; applyFilters(); }
+
+// ── API Explorer (full page, identical to admin) ─────────────────────────────
+let _exAllEndpoints = [];
+let _exFiltered     = [];
+let _exProjectId    = '';
+let _exCollapsed    = {};
+
+function openExplorerPage(){
+  // Navigate to explorer page and pre-select the currently viewed project
+  const pid = document.getElementById('view-project').value;
+  showPage('explorer', document.getElementById('nav-explorer'));
+  if(pid){
+    const sel = document.getElementById('ex-project');
+    sel.value = pid;
+    loadExplorer();
   }
 }
 
-// ── Upload ────────────────────────────────────────────────────────────────────
-function dv(e,on){ e.preventDefault(); document.getElementById('dz').classList.toggle('drag',on); }
-function dd(e){ e.preventDefault(); document.getElementById('dz').classList.remove('drag'); uploadSpecs(e.dataTransfer.files); }
+async function initExplorer(){
+  const sel = document.getElementById('ex-project');
+  if(sel.options.length <= 1){
+    allProjects.forEach(p=>{
+      const o=document.createElement('option');
+      o.value=p.id; o.textContent=p.name+(p.permission==='write'?' ✏':'');
+      sel.appendChild(o);
+    });
+  }
+}
 
-async function uploadSpecs(files){
-  const pid     = document.getElementById('up-project').value;
-  const version = document.getElementById('up-version').value.trim();
-  const notes   = document.getElementById('up-notes').value.trim();
-  const fb      = document.getElementById('upload-feedback');
-  if(!pid){ toast('Select a project first',true); return; }
-  const fd=new FormData();
-  Array.from(files).forEach(f=>fd.append('files',f));
-  if(version) fd.append('version',version);
-  if(notes)   fd.append('notes',notes);
-  fb.innerHTML='<div style="color:#6366f1;font-size:13px;padding:8px 0">Uploading…</div>';
+async function loadExplorer(){
+  const pid = document.getElementById('ex-project').value;
+  const tableEl    = document.getElementById('ex-table');
+  const filterCard = document.getElementById('ex-filters-card');
+  const countEl    = document.getElementById('ex-count');
+  const loadEl     = document.getElementById('ex-loading');
+  const copyBtn    = document.getElementById('ex-copy-btn');
+  const exportBtn  = document.getElementById('ex-export-btn');
+
+  if(!pid){
+    tableEl.innerHTML='<div class="empty-state" style="padding:3rem">Select a project above to view all its API endpoints</div>';
+    filterCard.style.display='none'; countEl.style.display='none';
+    copyBtn.style.display='none'; exportBtn.style.display='none';
+    return;
+  }
+  _exProjectId=pid; _exCollapsed={};
+  loadEl.style.display=''; tableEl.innerHTML='<div class="empty-state" style="padding:2rem">Fetching endpoints…</div>';
+  filterCard.style.display='none';
+
   try{
-    const r=await fetch(`/api/entity/projects/${pid}/specs`,{method:'POST',headers:{'Authorization':'Bearer '+token()},body:fd});
-    const d=await r.json();
-    if(!r.ok) throw d.detail;
-    const items=d.uploaded.map(u=>`<strong>${u.base_name}</strong> → <span class="badge badge-ver" style="font-size:11px">v${u.version_num} — ${u.version}</span>${u.version_num>1?' <span class="badge badge-new" style="font-size:11px">new version</span>':''}`).join('<br>');
-    fb.innerHTML=`<div class="success-bar">Uploaded:<br>${items}</div>`;
-    setTimeout(()=>fb.innerHTML='',8000);
-    toast(`${d.uploaded.length} file(s) uploaded`);
-    // refresh table + nav cache
-    delete navData[pid];
-    loadSpecsTable(pid);
-  }catch(e){ fb.innerHTML=`<div class="err-bar">${e}</div>`; toast(e||'Upload failed',true); }
+    const specs = await api('GET',`/api/entity/projects/${pid}/specs`) || [];
+    if(!specs.length){
+      loadEl.style.display='none';
+      tableEl.innerHTML='<div class="empty-state" style="padding:3rem">No API contracts in this project yet.</div>';
+      return;
+    }
+    const results = await Promise.all(specs.map(async s=>{
+      try{
+        const eps = await api('GET',`/api/entity/projects/${pid}/specs/${s.filename}/endpoints`);
+        return (eps||[]).map(e=>({...e, document:s.base_name||s.stem, filename:s.filename, version_num:s.version_num, version:s.version}));
+      }catch(e){ return []; }
+    }));
+    _exAllEndpoints = results.flat();
+    loadEl.style.display='none';
+    if(!_exAllEndpoints.length){
+      tableEl.innerHTML='<div class="empty-state" style="padding:3rem">No endpoints found in this project&#39;s specs.</div>';
+      return;
+    }
+    _populateExFilters();
+    filterCard.style.display=''; copyBtn.style.display=''; exportBtn.style.display='';
+    applyExFilters();
+  }catch(e){
+    loadEl.style.display='none';
+    tableEl.innerHTML=`<div class="empty-state" style="padding:2rem;color:#dc2626">Error loading endpoints: ${e}</div>`;
+  }
 }
 
-async function logout(){
-  await fetch('/api/auth/logout',{method:'POST'});
-  localStorage.clear(); window.location='/login.html';
+function _populateExFilters(){
+  const tagSel=document.getElementById('ex-tag'); const curTag=tagSel.value;
+  tagSel.innerHTML='<option value="">All tags / folders</option>';
+  [...new Set(_exAllEndpoints.map(e=>e.tag).filter(Boolean))].sort().forEach(t=>{
+    const o=document.createElement('option'); o.value=t; o.textContent=t; tagSel.appendChild(o);
+  });
+  if(curTag) tagSel.value=curTag;
+  const docSel=document.getElementById('ex-doc'); const curDoc=docSel.value;
+  docSel.innerHTML='<option value="">All documents</option>';
+  [...new Set(_exAllEndpoints.map(e=>e.document))].sort().forEach(d=>{
+    const o=document.createElement('option'); o.value=d; o.textContent=d; docSel.appendChild(o);
+  });
+  if(curDoc) docSel.value=curDoc;
 }
 
+function applyExFilters(){
+  const search=document.getElementById('ex-search').value.trim().toLowerCase();
+  const method=document.getElementById('ex-method').value;
+  const tag   =document.getElementById('ex-tag').value;
+  const doc   =document.getElementById('ex-doc').value;
+  _exFiltered=_exAllEndpoints.filter(e=>
+    (!method||e.method===method)&&(!tag||e.tag===tag)&&(!doc||e.document===doc)&&
+    (!search||e.path.toLowerCase().includes(search)||(e.summary||'').toLowerCase().includes(search))
+  );
+  const countEl=document.getElementById('ex-count');
+  countEl.style.display='';
+  countEl.textContent=`${_exFiltered.length} of ${_exAllEndpoints.length} endpoint${_exAllEndpoints.length===1?'':'s'}`;
+  renderExTable();
+}
+
+function clearExFilters(){
+  document.getElementById('ex-search').value=''; document.getElementById('ex-method').value='';
+  document.getElementById('ex-tag').value=''; document.getElementById('ex-doc').value='';
+  applyExFilters();
+}
+
+function toggleExGroup(docName){ _exCollapsed[docName]=!_exCollapsed[docName]; renderExTable(); }
+
+function renderExTable(){
+  const el=document.getElementById('ex-table');
+  if(!_exFiltered.length){ el.innerHTML='<div class="ex-empty">No endpoints match the current filters.</div>'; return; }
+  const groups={};
+  _exFiltered.forEach(e=>{ groups[e.document]=groups[e.document]||[]; groups[e.document].push(e); });
+  let rows='', idx=0;
+  for(const [docName,eps] of Object.entries(groups)){
+    const collapsed=!!_exCollapsed[docName];
+    const safeDoc=docName.replace(/'/g,"\'");
+    rows+=`<tr class="ex-doc-header ex-group-toggle" onclick="toggleExGroup('${safeDoc}')">
+      <td colspan="6">
+        <span style="margin-right:6px;font-size:10px">${collapsed?'▶':'▼'}</span>
+        📄 ${docName}
+        <span style="font-weight:400;color:#94a3b8;margin-left:8px">${eps.length} endpoint${eps.length===1?'':'s'}</span>
+        ${eps[0]?.version_num?`<span class="ex-doc-pill" style="margin-left:8px">v${eps[0].version_num} · ${eps[0].version||''}</span>`:''}
+      </td>
+    </tr>`;
+    if(!collapsed){
+      eps.forEach(e=>{
+        const rowId=`ex-ep-${idx}`;
+        const mCls={GET:'m-get',POST:'m-post',PUT:'m-put',PATCH:'m-patch',DELETE:'m-delete'}[e.method]||'m-head';
+        const pathHtml=e.path.replace(/\{([^}]+)\}/g,'<span class="param">{$1}</span>');
+        const hasDetail=(e.req_examples?.length||0)+(e.resp_examples?.length||0)+(e.parameters?.length||0)>0;
+        rows+=`<tr id="tr-${rowId}">
+          <td><span class="method-badge ${mCls}">${e.method}</span></td>
+          <td><span class="ex-path">${pathHtml}</span></td>
+          <td>
+            <span class="ex-summary" title="${(e.summary||'').replace(/"/g,'&quot;')}">${e.summary||'—'}</span>
+            ${hasDetail?`<br><button class="ep-toggle" style="margin-top:3px" id="exbtn-${rowId}" onclick="toggleExDetail('${rowId}',this)">▶ Examples</button>`:''}
+          </td>
+          <td>${e.tag?`<span class="ex-tag-pill">${e.tag}</span>`:''}</td>
+          <td><span class="ex-doc-pill" style="font-size:10px">${e.document}</span></td>
+          <td style="font-size:11px;color:#94a3b8;white-space:nowrap">v${e.version_num||1}</td>
+        </tr>`;
+        if(hasDetail){
+          rows+=`<tr class="ex-examples-row" id="exrow-${rowId}" style="display:none">
+            <td colspan="6"><div class="ex-examples-inner" id="excontent-${rowId}">${buildExamplesHTML(e,rowId)}</div></td>
+          </tr>`;
+        }
+        idx++;
+      });
+    }
+  }
+  el.innerHTML=`<div class="ex-table-wrap"><table class="ex-table">
+    <thead><tr>
+      <th style="width:90px">Method</th><th>Path</th><th>Summary / Examples</th>
+      <th>Tag</th><th style="width:120px">Document</th><th style="width:60px">Ver</th>
+    </tr></thead><tbody>${rows}</tbody></table></div>`;
+}
+
+function toggleExDetail(rowId,btn){
+  const row=document.getElementById(`exrow-${rowId}`);
+  const open=row.style.display!=='none';
+  row.style.display=open?'none':'';
+  btn.textContent=open?'▶ Examples':'▼ Examples';
+}
+
+function methodBadge(m){
+  const cls={GET:'m-get',POST:'m-post',PUT:'m-put',PATCH:'m-patch',DELETE:'m-delete'}[m]||'m-head';
+  return `<span class="method-badge ${cls}">${m}</span>`;
+}
+
+function buildExamplesHTML(e,rowId){
+  const tabs=[],panels=[];
+  const params=e.parameters||[];
+  if(params.length){
+    const tabId=`${rowId}-params`; tabs.push({id:tabId,label:`Parameters (${params.length})`});
+    const pRows=params.map(p=>`<tr>
+      <td style="font-family:monospace;font-size:11px;color:#0f172a">${p.name}</td>
+      <td><span class="ex-in-badge">${p.in}</span>${p.required?'<span class="ex-req-badge" style="margin-left:4px">required</span>':''}</td>
+      <td style="color:#64748b;font-size:11px">${p.description||'—'}</td>
+      <td style="font-family:monospace;font-size:11px;color:#7c3aed">${p.example!=null&&p.example!==''?String(p.example):'—'}</td>
+    </tr>`).join('');
+    panels.push({id:tabId,html:`<table class="ex-params-table"><thead><tr><th>Name</th><th>Location</th><th>Description</th><th>Example</th></tr></thead><tbody>${pRows}</tbody></table>`});
+  }
+  const reqExs=e.req_examples||[];
+  if(reqExs.length){
+    const tabId=`${rowId}-req`; tabs.push({id:tabId,label:`Request (${reqExs.length})`});
+    const blocks=reqExs.map((ex,i)=>{
+      const bid=`${rowId}-req-${i}`;
+      return `<div style="margin-bottom:${i<reqExs.length-1?'12px':'0'}">
+        <div class="ex-ex-name">${_esc(ex.name)}</div>
+        <div class="ex-code-wrap"><code class="ex-code" id="code-${bid}">${_syntaxHL(JSON.stringify(ex.value,null,2))}</code>
+        <button class="ex-copy-code" onclick="copyCode('code-${bid}')">copy</button></div></div>`;
+    }).join('');
+    panels.push({id:tabId,html:blocks});
+  }
+  const respExs=e.resp_examples||[];
+  if(respExs.length){
+    const byCode={};
+    respExs.forEach(ex=>{ (byCode[ex.status_code]=byCode[ex.status_code]||[]).push(ex); });
+    Object.entries(byCode).forEach(([code,exArr])=>{
+      const tabId=`${rowId}-resp-${code}`;
+      const sCls=code.startsWith('2')?'ex-s-2xx':code.startsWith('4')?'ex-s-4xx':code.startsWith('5')?'ex-s-5xx':'ex-s-other';
+      tabs.push({id:tabId,label:`<span class="ex-status-badge ${sCls}">${code}</span> (${exArr.length})`});
+      const blocks=exArr.map((ex,i)=>{
+        const bid=`${rowId}-resp-${code}-${i}`;
+        return `<div style="margin-bottom:${i<exArr.length-1?'12px':'0'}">
+          <div class="ex-ex-name">${_esc(ex.name)}</div>
+          <div class="ex-code-wrap"><code class="ex-code" id="code-${bid}">${_syntaxHL(JSON.stringify(ex.value,null,2))}</code>
+          <button class="ex-copy-code" onclick="copyCode('code-${bid}')">copy</button></div></div>`;
+      }).join('');
+      panels.push({id:tabId,html:blocks});
+    });
+  }
+  if(!tabs.length) return '<div style="font-size:11px;color:#94a3b8;padding:4px 0">No examples available.</div>';
+  const tabsHTML=tabs.map((t,i)=>`<div class="ex-ex-tab${i===0?' active':''}" onclick="switchExTab(this,'${t.id}')">${t.label}</div>`).join('');
+  const panelsHTML=panels.map((p,i)=>`<div class="ex-ex-panel${i===0?' active':''}" id="${p.id}">${p.html}</div>`).join('');
+  return `<div class="ex-ex-tabs">${tabsHTML}</div><div style="padding-top:10px">${panelsHTML}</div>`;
+}
+
+function switchExTab(btn,panelId){
+  const container=btn.closest('.ex-examples-inner')||btn.closest('.ep-inner');
+  container.querySelectorAll('.ex-ex-tab').forEach(t=>t.classList.remove('active'));
+  container.querySelectorAll('.ex-ex-panel').forEach(p=>p.classList.remove('active'));
+  btn.classList.add('active');
+  const panel=document.getElementById(panelId); if(panel) panel.classList.add('active');
+}
+
+function copyCode(codeId){
+  const el=document.getElementById(codeId); if(!el) return;
+  navigator.clipboard.writeText(el.innerText||el.textContent).then(()=>toast('Copied!')).catch(()=>toast('Copy failed',true));
+}
+
+function _syntaxHL(json){
+  if(typeof json!=='string') json=JSON.stringify(json,null,2);
+  return json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/("(\u[a-zA-Z0-9]{4}|\[^u]|[^\"])*"(\s*:)?|(true|false|null)|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,m=>{
+      let cls='color:#a5f3fc';
+      if(/^"/.test(m)){ cls=/:$/.test(m)?'color:#93c5fd':'color:#86efac'; }
+      else if(/true|false/.test(m)) cls='color:#fbbf24';
+      else if(/null/.test(m)) cls='color:#f87171';
+      return `<span style="${cls}">${m}</span>`;
+    });
+}
+
+function _esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function copyEndpoints(){
+  if(!_exFiltered.length) return;
+  const lines=['| Method | Path | Summary | Tag | Document |','|--------|------|---------|-----|----------|'];
+  _exFiltered.forEach(e=>{ lines.push(`| \`${e.method}\` | \`${e.path}\` | ${e.summary||''} | ${e.tag||''} | ${e.document} |`); });
+  navigator.clipboard.writeText(lines.join('\n')).then(()=>toast('Copied as Markdown!')).catch(()=>toast('Copy failed',true));
+}
+
+function exportEndpoints(){
+  if(!_exFiltered.length) return;
+  const rows=[['Method','Path','Summary','Tag','Document','Version']];
+  _exFiltered.forEach(e=>rows.push([e.method,e.path,e.summary||'',e.tag||'',e.document,`v${e.version_num||1}`]));
+  const csv=rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const a=document.createElement('a');
+  a.href='data:text/csv;charset=utf-8,'+encodeURIComponent(csv);
+  const proj=document.getElementById('ex-project');
+  a.download=`${proj.options[proj.selectedIndex]?.text||'project'}_endpoints.csv`;
+  a.click(); toast('CSV downloaded');
+}
+
+// ── Reference Docs page ───────────────────────────────────────────────────────
+function initRefDocs(){
+  const sel=document.getElementById('ref-view-project');
+  if(sel.options.length<=1) allProjects.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
+}
+async function onRefProjectChange(){
+  const pid=document.getElementById('ref-project').value;
+  const specSel=document.getElementById('ref-linked-spec');
+  specSel.innerHTML='<option value="">— select spec (optional) —</option>'; specSel.disabled=!pid;
+  if(!pid) return;
+  const specs=await api('GET',`/api/entity/projects/${pid}/specs`)||[];
+  specs.forEach(s=>{ const o=document.createElement('option'); o.value=s.filename; o.textContent=`${s.base_name} v${s.version_num}`; specSel.appendChild(o); });
+  document.getElementById('ref-view-project').value=pid;
+  loadRefDocs();
+}
+async function loadRefDocs(){
+  const pid=document.getElementById('ref-view-project').value; const el=document.getElementById('ref-table');
+  if(!pid){ el.innerHTML='<div class="empty-state">Select a project to view its reference documents</div>'; return; }
+  const refs=await api('GET',`/api/entity/projects/${pid}/refs`)||[];
+  if(!refs.length){ el.innerHTML='<div class="empty-state">No reference documents uploaded yet.</div>'; return; }
+  const fmtBadge=fmt=>{ const cls={pdf:'fmt-pdf',md:'fmt-md',txt:'fmt-txt',docx:'fmt-docx',doc:'fmt-doc',png:'fmt-img',jpg:'fmt-img',jpeg:'fmt-img'}[fmt]||'fmt-txt'; return `<span class="badge ${cls}">${fmt.toUpperCase()}</span>`; };
+  el.innerHTML=`<table><thead><tr><th>File</th><th>Format</th><th>Linked Spec</th><th>Description</th><th>Uploaded by</th><th>Date</th><th></th></tr></thead><tbody>
+    ${refs.map(r=>`<tr>
+      <td><strong style="font-size:13px">${r.filename}</strong><br><span style="font-size:11px;color:#94a3b8">${r.size<1024?r.size+'B':Math.round(r.size/1024)+'KB'}</span></td>
+      <td>${fmtBadge(r.format)}</td>
+      <td style="font-size:12px;color:#64748b">${r.linked_spec||'—'}</td>
+      <td style="font-size:12px;color:#94a3b8;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description||'—'}</td>
+      <td style="font-size:12px;color:#64748b">${r.uploaded_by}</td>
+      <td style="font-size:12px;color:#94a3b8;white-space:nowrap">${new Date(r.uploaded_at).toLocaleDateString()}</td>
+      <td><a href="/api/entity/projects/${pid}/refs/${r.filename}?token=${token()}" target="_blank" class="btn btn-sm">Open ↗</a></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+function rdv(e,on){ e.preventDefault(); document.getElementById('ref-dz').classList.toggle('drag',on); }
+function rdd(e){ e.preventDefault(); document.getElementById('ref-dz').classList.remove('drag'); uploadRefs(e.dataTransfer.files); }
+async function uploadRefs(files){
+  const pid=document.getElementById('ref-project').value; const desc=document.getElementById('ref-description').value.trim(); const linked=document.getElementById('ref-linked-spec').value; const fb=document.getElementById('ref-upload-feedback');
+  if(!pid){ toast('Select a project first',true); document.getElementById('ref-fi').value=''; return; }
+  const fd=new FormData(); Array.from(files).forEach(f=>fd.append('files',f)); if(desc) fd.append('description',desc); if(linked) fd.append('linked_spec',linked);
+  fb.innerHTML='<div style="color:#6366f1;font-size:13px;padding:8px 0">Uploading…</div>';
+  document.getElementById('ref-fi').value='';
+  try{
+    const r=await fetch(`/api/entity/projects/${pid}/refs`,{method:'POST',headers:{'Authorization':'Bearer '+token()},body:fd}); const d=await r.json(); if(!r.ok) throw d.detail;
+    fb.innerHTML=`<div class="success-bar">Uploaded: ${d.uploaded.map(u=>u.filename).join(', ')}</div>`; setTimeout(()=>fb.innerHTML='',6000); toast(`${d.uploaded.length} file(s) uploaded`);
+    loadRefDocs();
+  }catch(e){ fb.innerHTML=`<div class="err-bar">${e}</div>`; toast(String(e),true); }
+}
+
+// ── Reference Docs page ───────────────────────────────────────────────────────
+function initRefDocs(){
+  const sel=document.getElementById('ref-view-project');
+  if(sel.options.length<=1) allProjects.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
+}
+async function onRefProjectChange(){
+  const pid=document.getElementById('ref-project').value;
+  const specSel=document.getElementById('ref-linked-spec');
+  specSel.innerHTML='<option value="">— select spec (optional) —</option>'; specSel.disabled=!pid;
+  if(!pid) return;
+  const specs=await api('GET',`/api/entity/projects/${pid}/specs`)||[];
+  specs.forEach(s=>{ const o=document.createElement('option'); o.value=s.filename; o.textContent=`${s.base_name} v${s.version_num}`; specSel.appendChild(o); });
+  document.getElementById('ref-view-project').value=pid;
+  loadRefDocs();
+}
+async function loadRefDocs(){
+  const pid=document.getElementById('ref-view-project').value; const el=document.getElementById('ref-table');
+  if(!pid){ el.innerHTML='<div class="empty-state">Select a project to view its reference documents</div>'; return; }
+  const refs=await api('GET',`/api/entity/projects/${pid}/refs`)||[];
+  if(!refs.length){ el.innerHTML='<div class="empty-state">No reference documents uploaded yet.</div>'; return; }
+  const fmtBadge=fmt=>{ const cls={pdf:'fmt-pdf',md:'fmt-md',txt:'fmt-txt',docx:'fmt-docx',doc:'fmt-doc',png:'fmt-img',jpg:'fmt-img',jpeg:'fmt-img'}[fmt]||'fmt-txt'; return `<span class="badge ${cls}">${fmt.toUpperCase()}</span>`; };
+  el.innerHTML=`<table><thead><tr><th>File</th><th>Format</th><th>Linked Spec</th><th>Description</th><th>Uploaded by</th><th>Date</th><th></th></tr></thead><tbody>
+    ${refs.map(r=>`<tr>
+      <td><strong style="font-size:13px">${r.filename}</strong><br><span style="font-size:11px;color:#94a3b8">${r.size<1024?r.size+'B':Math.round(r.size/1024)+'KB'}</span></td>
+      <td>${fmtBadge(r.format)}</td>
+      <td style="font-size:12px;color:#64748b">${r.linked_spec||'—'}</td>
+      <td style="font-size:12px;color:#94a3b8;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description||'—'}</td>
+      <td style="font-size:12px;color:#64748b">${r.uploaded_by}</td>
+      <td style="font-size:12px;color:#94a3b8;white-space:nowrap">${new Date(r.uploaded_at).toLocaleDateString()}</td>
+      <td><a href="/api/entity/projects/${pid}/refs/${r.filename}?token=${token()}" target="_blank" class="btn btn-sm">Open ↗</a></td>
+    </tr>`).join('')}
+  </tbody></table>`;
+}
+function rdv(e,on){ e.preventDefault(); document.getElementById('ref-dz').classList.toggle('drag',on); }
+function rdd(e){ e.preventDefault(); document.getElementById('ref-dz').classList.remove('drag'); uploadRefs(e.dataTransfer.files); }
+async function uploadRefs(files){
+  const pid=document.getElementById('ref-project').value; const desc=document.getElementById('ref-description').value.trim(); const linked=document.getElementById('ref-linked-spec').value; const fb=document.getElementById('ref-upload-feedback');
+  if(!pid){ toast('Select a project first',true); document.getElementById('ref-fi').value=''; return; }
+  const fd=new FormData(); Array.from(files).forEach(f=>fd.append('files',f)); if(desc) fd.append('description',desc); if(linked) fd.append('linked_spec',linked);
+  fb.innerHTML='<div style="color:#6366f1;font-size:13px;padding:8px 0">Uploading…</div>';
+  document.getElementById('ref-fi').value='';
+  try{
+    const r=await fetch(`/api/entity/projects/${pid}/refs`,{method:'POST',headers:{'Authorization':'Bearer '+token()},body:fd}); const d=await r.json(); if(!r.ok) throw d.detail;
+    fb.innerHTML=`<div class="success-bar">Uploaded: ${d.uploaded.map(u=>u.filename).join(', ')}</div>`; setTimeout(()=>fb.innerHTML='',6000); toast(`${d.uploaded.length} file(s) uploaded`);
+    loadRefDocs();
+  }catch(e){ fb.innerHTML=`<div class="err-bar">${e}</div>`; toast(String(e),true); }
+}
+
+// ── Shared explorer render (drawer) ───────────────────────────────────────────
+function renderExBody(bodyId, filtered, collapsed, prefix){
+  const body=document.getElementById(bodyId); if(!filtered.length){ body.innerHTML='<div class="ex-empty">No endpoints match the filters.</div>'; return; }
+  const groups={}; filtered.forEach(e=>{ (groups[e.document]=groups[e.document]||[]).push(e); });
+  let html='', idx=0;
+  for(const [docName,eps] of Object.entries(groups)){
+    const isCollapsed=!!collapsed[docName]; const safe=docName.replace(/[^a-zA-Z0-9]/g,'_');
+    html+=`<div class="doc-group-head" onclick="toggleDG('${docName.replace(/'/g,"\\'")}','${prefix}')"><span class="dg-toggle${isCollapsed?'':' open'}">▶</span>📄 ${esc(docName)}<span class="dg-count">${eps.length} endpoint${eps.length===1?'':'s'}</span>${eps[0]?.version_num?`<span style="font-size:10px;background:#f0f9ff;color:#0369a1;padding:1px 7px;border-radius:10px;margin-left:auto">v${eps[0].version_num}</span>`:''}</div>`;
+    if(!isCollapsed){
+      html+='<div>';
+      eps.forEach(e=>{
+        const rid=`${prefix}${idx}`; const mCls='mb-'+(['GET','POST','PUT','PATCH','DELETE'].includes(e.method)?e.method:'OTHER');
+        const ph=e.path.replace(/\{([^}]+)\}/g,'<span class="prm">{$1}</span>');
+        const hd=(e.req_examples?.length||0)+(e.resp_examples?.length||0)+(e.parameters?.length||0)>0;
+        html+=`<div class="ep-item"><div class="ep-main" onclick="${hd?`toggleDetail('${rid}')`:''}" style="${hd?'':`cursor:default`}"><div class="ep-left"><span class="mb ${mCls}">${e.method}</span><div style="min-width:0"><div class="ep-path">${ph}</div>${e.summary?`<div class="ep-summary-text">${esc(e.summary)}</div>`:''}</div></div>${e.tag?`<span class="ep-tag-pill">${esc(e.tag)}</span>`:''}<span class="ep-doc-pill">${esc(docName)}</span>${hd?`<span class="ep-chevron" id="chev-${rid}">▶</span>`:''}</div>${hd?`<div class="ep-detail" id="detail-${rid}">${buildExDetail(e,rid)}</div>`:''}</div>`;
+        idx++;
+      });
+      html+='</div>';
+    }
+  }
+  body.innerHTML=html;
+}
+function toggleDG(docName, prefix){ if(prefix==='ex') _exCollapsed[docName]=!_exCollapsed[docName]; else _fpCollapsed[docName]=!_fpCollapsed[docName]; if(prefix==='ex') renderExBody('ex-body',_exFiltered,_exCollapsed,'ex'); }
+function toggleDetail(rid){ const d=document.getElementById(`detail-${rid}`); const c=document.getElementById(`chev-${rid}`); const o=d.classList.toggle('open'); if(c) c.classList.toggle('open',o); }
+function switchTab(btn,pid){ const ct=btn.closest('.ep-detail'); ct.querySelectorAll('.ex-tab').forEach(t=>t.classList.remove('active')); ct.querySelectorAll('.ex-panel').forEach(p=>p.classList.remove('active')); btn.classList.add('active'); const p=document.getElementById(pid); if(p) p.classList.add('active'); }
+function copyCode(id){ const el=document.getElementById(id); if(!el) return; navigator.clipboard.writeText(el.innerText||el.textContent).then(()=>toast('Copied!')).catch(()=>toast('Copy failed',true)); }
+function esc(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function syntaxHL(json){
+  if(typeof json!=='string') json=JSON.stringify(json,null,2);
+  return json.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,m=>{ let c='color:#a5f3fc'; if(/^"/.test(m)){c=/:$/.test(m)?'color:#93c5fd':'color:#86efac';}else if(/true|false/.test(m))c='color:#fbbf24';else if(/null/.test(m))c='color:#f87171'; return `<span style="${c}">${m}</span>`; });
+}
+function buildExDetail(e,rid){
+  const tabs=[],panels=[];
+  const params=e.parameters||[]; if(params.length){ const tid=rid+'-p'; tabs.push({id:tid,label:`Parameters (${params.length})`}); panels.push({id:tid,html:`<table class="ex-params"><thead><tr><th>Name</th><th>In</th><th>Description</th><th>Example</th></tr></thead><tbody>${params.map(p=>`<tr><td style="font-family:monospace;font-size:11px">${esc(p.name)}</td><td><span class="in-badge">${esc(p.in)}</span>${p.required?'<span class="req-badge" style="margin-left:3px">required</span>':''}</td><td style="color:#64748b;font-size:11px">${esc(p.description||'—')}</td><td style="font-family:monospace;font-size:11px;color:#7c3aed">${p.example!=null&&p.example!==''?esc(String(p.example)):'—'}</td></tr>`).join('')}</tbody></table>`}); }
+  const reqExs=e.req_examples||[]; if(reqExs.length){ const tid=rid+'-req'; tabs.push({id:tid,label:`Request (${reqExs.length})`}); panels.push({id:tid,html:reqExs.map((ex,i)=>`<div class="ex-name">${esc(ex.name)}</div><div class="ex-code-wrap"><code class="ex-code" id="ec-${rid}-req-${i}">${syntaxHL(JSON.stringify(ex.value,null,2))}</code><button class="ex-copy" onclick="copyCode('ec-${rid}-req-${i}')">copy</button></div>`).join('<div style="height:8px"></div>')}); }
+  const respExs=e.resp_examples||[]; if(respExs.length){ const byCd={}; respExs.forEach(ex=>{ (byCd[ex.status_code]=byCd[ex.status_code]||[]).push(ex); }); Object.entries(byCd).forEach(([code,arr])=>{ const tid=`${rid}-rs-${code}`; const sc=code.startsWith('2')?'ex-s2':code.startsWith('4')?'ex-s4':code.startsWith('5')?'ex-s5':'ex-sx'; tabs.push({id:tid,label:`<span class="ex-status ${sc}">${code}</span>${arr.length>1?` (${arr.length})`:''}`}); panels.push({id:tid,html:arr.map((ex,i)=>`<div class="ex-name">${esc(ex.name)}</div><div class="ex-code-wrap"><code class="ex-code" id="ec-${rid}-rs-${code}-${i}">${syntaxHL(JSON.stringify(ex.value,null,2))}</code><button class="ex-copy" onclick="copyCode('ec-${rid}-rs-${code}-${i}')">copy</button></div>`).join('<div style="height:8px"></div>')}); }); }
+  if(!tabs.length) return '<div style="font-size:11px;color:#94a3b8;padding:6px 0">No examples available.</div>';
+  return `<div class="ex-tabs">${tabs.map((t,i)=>`<div class="ex-tab${i===0?' active':''}" onclick="switchTab(this,'${t.id}')">${t.label}</div>`).join('')}</div><div style="padding-top:8px">${panels.map((p,i)=>`<div class="ex-panel${i===0?' active':''}" id="${p.id}">${p.html}</div>`).join('')}</div>`;
+}
+
+async function logout(){ await fetch('/api/auth/logout',{method:'POST'}); localStorage.clear(); window.location='/login.html'; }
 init();
 </script>
 </body>

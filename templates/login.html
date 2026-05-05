@@ -64,7 +64,7 @@ async function login(){
     if(!res.ok){ errEl.textContent=data.detail||'Login failed'; errEl.style.display='block'; return; }
     localStorage.setItem('token', data.access_token);
     localStorage.setItem('user',  JSON.stringify(data.user));
-    window.location = data.user.role==='admin' ? '/admin.html' : '/docs';
+    window.location = data.user.role==='admin' ? '/admin.html' : '/entity.html';
   }catch(e){
     errEl.textContent='Server error. Is the server running?'; errEl.style.display='block';
   }finally{

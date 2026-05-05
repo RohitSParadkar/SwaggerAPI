@@ -224,6 +224,95 @@ def all_specs(admin=Depends(require_admin)):
     return result
 
 
+@router.get("/projects/{project_id}/specs/{filename}/endpoints")
+def spec_endpoints(project_id: str, filename: str, admin=Depends(require_admin)):
+    """
+    Parse the stored OpenAPI spec and return a flat list of operations,
+    each carrying request body examples and response examples so the
+    admin UI can render them inline without a second API call.
+    """
+    spec = project_store.get_spec_content(project_id, filename)
+    if spec is None:
+        raise HTTPException(status_code=404, detail="Spec not found")
+
+    endpoints = []
+    for path, path_item in (spec.get("paths") or {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        for method, operation in path_item.items():
+            if method.lower() not in ("get", "post", "put", "patch", "delete",
+                                       "head", "options", "trace"):
+                continue
+            if not isinstance(operation, dict):
+                continue
+
+            tags = operation.get("tags") or []
+
+            # ── Request body examples ────────────────────────────────────────
+            req_examples = []   # [{name, value}]
+            rb = operation.get("requestBody") or {}
+            for ct, media in (rb.get("content") or {}).items():
+                if not isinstance(media, dict):
+                    continue
+                # named examples map  (our converter always produces this)
+                for ex_name, ex_obj in (media.get("examples") or {}).items():
+                    val = ex_obj.get("value") if isinstance(ex_obj, dict) else ex_obj
+                    req_examples.append({"name": ex_name, "value": val, "content_type": ct})
+                # singular example fallback
+                if "example" in media and not media.get("examples"):
+                    req_examples.append({"name": "Example", "value": media["example"], "content_type": ct})
+
+            # ── Response examples ────────────────────────────────────────────
+            resp_examples = []  # [{status_code, name, value, content_type}]
+            for status_code, resp_obj in (operation.get("responses") or {}).items():
+                if not isinstance(resp_obj, dict):
+                    continue
+                for ct, media in (resp_obj.get("content") or {}).items():
+                    if not isinstance(media, dict):
+                        continue
+                    for ex_name, ex_obj in (media.get("examples") or {}).items():
+                        val = ex_obj.get("value") if isinstance(ex_obj, dict) else ex_obj
+                        resp_examples.append({
+                            "status_code":  status_code,
+                            "name":         ex_name,
+                            "value":        val,
+                            "content_type": ct,
+                        })
+                    if "example" in media and not media.get("examples"):
+                        resp_examples.append({
+                            "status_code":  status_code,
+                            "name":         f"{status_code} Response",
+                            "value":        media["example"],
+                            "content_type": ct,
+                        })
+
+            # ── Parameters ───────────────────────────────────────────────────
+            parameters = []
+            for p in (operation.get("parameters") or []):
+                if not isinstance(p, dict):
+                    continue
+                parameters.append({
+                    "name":        p.get("name", ""),
+                    "in":          p.get("in", ""),
+                    "required":    p.get("required", False),
+                    "description": p.get("description", ""),
+                    "example":     (p.get("schema") or {}).get("example", ""),
+                })
+
+            endpoints.append({
+                "method":        method.upper(),
+                "path":          path,
+                "summary":       operation.get("summary") or operation.get("description") or "",
+                "description":   operation.get("description") or "",
+                "tag":           tags[0] if tags else "",
+                "operation_id":  operation.get("operationId") or "",
+                "parameters":    parameters,
+                "req_examples":  req_examples,
+                "resp_examples": resp_examples,
+            })
+    return endpoints
+
+
 @router.get("/projects/{project_id}/specs/{filename}")
 def serve_spec(project_id: str, filename: str, admin=Depends(require_admin)):
     spec = project_store.get_spec_content(project_id, filename)
@@ -236,5 +325,59 @@ def serve_spec(project_id: str, filename: str, admin=Depends(require_admin)):
 def delete_spec(project_id: str, filename: str, admin=Depends(require_admin)):
     try:
         project_store.delete_spec(project_id, filename)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+
+# ── Reference docs ────────────────────────────────────────────────────────────
+
+@router.get("/projects/{project_id}/refs")
+def list_refs(project_id: str, admin=Depends(require_admin)):
+    if not project_store.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project_store.list_refs(project_id)
+
+
+@router.post("/projects/{project_id}/refs")
+async def upload_ref(
+    project_id: str,
+    files:       list[UploadFile] = File(...),
+    linked_spec: str = Form(default=""),
+    description: str = Form(default=""),
+    admin=Depends(require_admin),
+):
+    if not project_store.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    from pathlib import Path as _P
+    allowed = {".pdf", ".md", ".txt", ".docx", ".doc", ".png", ".jpg", ".jpeg"}
+    uploaded = []
+    for f in files:
+        ext = _P(f.filename or "").suffix.lower()
+        if ext not in allowed:
+            raise HTTPException(status_code=422,
+                detail=f"'{f.filename}' — allowed formats: PDF, MD, TXT, DOCX, PNG, JPG")
+        content = await f.read()
+        info = project_store.save_ref(
+            project_id, f.filename or "document",
+            content, uploaded_by=admin["username"],
+            linked_spec=linked_spec, description=description,
+        )
+        uploaded.append(info)
+    return {"uploaded": uploaded}
+
+
+@router.get("/projects/{project_id}/refs/{filename}")
+def serve_ref(project_id: str, filename: str, admin=Depends(require_admin)):
+    from fastapi.responses import FileResponse
+    p = project_store.get_ref_path(project_id, filename)
+    if not p:
+        raise HTTPException(status_code=404, detail="Reference doc not found")
+    return FileResponse(str(p), filename=filename)
+
+
+@router.delete("/projects/{project_id}/refs/{filename}", status_code=204)
+def delete_ref(project_id: str, filename: str, admin=Depends(require_admin)):
+    try:
+        project_store.delete_ref(project_id, filename)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))

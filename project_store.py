@@ -20,6 +20,7 @@ from typing import Optional
 from config import PROJECTS_DIR
 
 ALLOWED_EXTS = {".yaml", ".yml", ".json"}
+ALLOWED_REF_EXTS = {".pdf", ".md", ".txt", ".docx", ".doc", ".png", ".jpg", ".jpeg"}
 
 
 # ── Path helpers ──────────────────────────────────────────────────────────────
@@ -34,6 +35,22 @@ def _specs_dir(pid: str) -> Path:
     d = _project_dir(pid) / "specs"
     d.mkdir(parents=True, exist_ok=True)
     return d
+
+def _refs_dir(pid: str) -> Path:
+    """Reference docs (PDF, MD, etc.) live here."""
+    d = _project_dir(pid) / "refs"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+def _refs_meta_path(pid: str) -> Path:
+    return _project_dir(pid) / "refs_meta.json"
+
+def _load_refs_meta(pid: str) -> dict:
+    p = _refs_meta_path(pid)
+    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else {}
+
+def _save_refs_meta(pid: str, meta: dict) -> None:
+    _refs_meta_path(pid).write_text(json.dumps(meta, indent=2), encoding="utf-8")
 
 def _load_meta(pid: str) -> Optional[dict]:
     p = _meta_path(pid)
@@ -263,3 +280,82 @@ def get_spec_content(pid: str, filename: str):
         return _yaml.safe_load(text)
     except Exception as e:
         raise ValueError(f"Cannot parse {filename}: {e}")
+
+
+# ── Reference docs CRUD ───────────────────────────────────────────────────────
+# Reference docs are PDFs, Markdown files, Word docs etc. uploaded alongside
+# API contracts for human-readable documentation.
+
+def list_refs(pid: str) -> list[dict]:
+    rd = _refs_dir(pid)
+    meta = _load_refs_meta(pid)
+    out = []
+    for f in sorted(rd.iterdir()):
+        if not f.is_file():
+            continue
+        if f.suffix.lower() not in ALLOWED_REF_EXTS:
+            continue
+        s = f.stat()
+        m = meta.get(f.name, {})
+        out.append({
+            "filename":    f.name,
+            "size":        s.st_size,
+            "uploaded_by": m.get("uploaded_by", "unknown"),
+            "uploaded_at": m.get("uploaded_at", datetime.fromtimestamp(s.st_mtime).isoformat()),
+            "linked_spec": m.get("linked_spec", ""),   # optional: tied to a spec filename
+            "description": m.get("description", ""),
+            "format":      f.suffix.lower().lstrip("."),
+        })
+    return out
+
+
+def save_ref(pid: str, filename: str, content: bytes,
+             uploaded_by: str = "admin",
+             linked_spec: str = "",
+             description: str = "") -> dict:
+    if not _load_meta(pid):
+        raise KeyError(f"Project {pid} not found")
+    dest = _refs_dir(pid) / filename
+    # Simple deduplication: if file exists, add _2, _3 suffix
+    if dest.exists():
+        stem, ext = filename.rsplit(".", 1) if "." in filename else (filename, "")
+        i = 2
+        while dest.exists():
+            new_name = f"{stem}_{i}.{ext}" if ext else f"{stem}_{i}"
+            dest = _refs_dir(pid) / new_name
+            i += 1
+    dest.write_bytes(content)
+    s = dest.stat()
+    now = datetime.utcnow().isoformat()
+    refs_meta = _load_refs_meta(pid)
+    refs_meta[dest.name] = {
+        "uploaded_by": uploaded_by,
+        "uploaded_at": now,
+        "linked_spec": linked_spec,
+        "description": description,
+    }
+    _save_refs_meta(pid, refs_meta)
+    return {
+        "filename":    dest.name,
+        "size":        s.st_size,
+        "uploaded_by": uploaded_by,
+        "uploaded_at": now,
+        "linked_spec": linked_spec,
+        "description": description,
+        "format":      dest.suffix.lower().lstrip("."),
+    }
+
+
+def get_ref_path(pid: str, filename: str) -> Optional[Path]:
+    p = _refs_dir(pid) / filename
+    return p if p.exists() else None
+
+
+def delete_ref(pid: str, filename: str) -> None:
+    p = _refs_dir(pid) / filename
+    if not p.exists():
+        raise KeyError("Reference doc not found")
+    p.unlink()
+    meta = _load_refs_meta(pid)
+    meta.pop(filename, None)
+    _save_refs_meta(pid, meta)

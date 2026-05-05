@@ -124,6 +124,78 @@ def project_documents(project_id: str, current_user=Depends(get_current_user)):
 
 # ── Single spec ───────────────────────────────────────────────────────────────
 
+@router.get("/projects/{project_id}/specs/{filename}/endpoints")
+def get_spec_endpoints(project_id: str, filename: str, current_user=Depends(get_current_user)):
+    """Return flat list of API endpoints with request/response examples from the stored spec."""
+    if project_id not in _allowed_projects(current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+    spec = project_store.get_spec_content(project_id, filename)
+    if spec is None:
+        raise HTTPException(status_code=404, detail="Spec not found")
+
+    endpoints = []
+    for path, path_item in (spec.get("paths") or {}).items():
+        if not isinstance(path_item, dict):
+            continue
+        for method, operation in path_item.items():
+            if method.lower() not in ("get", "post", "put", "patch", "delete",
+                                       "head", "options", "trace"):
+                continue
+            if not isinstance(operation, dict):
+                continue
+            tags = operation.get("tags") or []
+
+            req_examples = []
+            rb = operation.get("requestBody") or {}
+            for ct, media in (rb.get("content") or {}).items():
+                if not isinstance(media, dict):
+                    continue
+                for ex_name, ex_obj in (media.get("examples") or {}).items():
+                    val = ex_obj.get("value") if isinstance(ex_obj, dict) else ex_obj
+                    req_examples.append({"name": ex_name, "value": val, "content_type": ct})
+                if "example" in media and not media.get("examples"):
+                    req_examples.append({"name": "Example", "value": media["example"], "content_type": ct})
+
+            resp_examples = []
+            for status_code, resp_obj in (operation.get("responses") or {}).items():
+                if not isinstance(resp_obj, dict):
+                    continue
+                for ct, media in (resp_obj.get("content") or {}).items():
+                    if not isinstance(media, dict):
+                        continue
+                    for ex_name, ex_obj in (media.get("examples") or {}).items():
+                        val = ex_obj.get("value") if isinstance(ex_obj, dict) else ex_obj
+                        resp_examples.append({"status_code": status_code, "name": ex_name,
+                                              "value": val, "content_type": ct})
+                    if "example" in media and not media.get("examples"):
+                        resp_examples.append({"status_code": status_code,
+                                              "name": f"{status_code} Response",
+                                              "value": media["example"], "content_type": ct})
+
+            parameters = []
+            for p in (operation.get("parameters") or []):
+                if isinstance(p, dict):
+                    parameters.append({
+                        "name": p.get("name", ""), "in": p.get("in", ""),
+                        "required": p.get("required", False),
+                        "description": p.get("description", ""),
+                        "example": (p.get("schema") or {}).get("example", ""),
+                    })
+
+            endpoints.append({
+                "method":        method.upper(),
+                "path":          path,
+                "summary":       operation.get("summary") or operation.get("description") or "",
+                "description":   operation.get("description") or "",
+                "tag":           tags[0] if tags else "",
+                "operation_id":  operation.get("operationId") or "",
+                "parameters":    parameters,
+                "req_examples":  req_examples,
+                "resp_examples": resp_examples,
+            })
+    return endpoints
+
+
 @router.get("/projects/{project_id}/specs/{filename}")
 def get_spec(project_id: str, filename: str, current_user=Depends(get_current_user)):
     if project_id not in _allowed_projects(current_user):
@@ -173,3 +245,65 @@ async def entity_upload_spec(
         )
         uploaded.append(info)
     return {"uploaded": uploaded}
+
+
+# ── Reference docs ────────────────────────────────────────────────────────────
+
+@router.get("/projects/{project_id}/refs")
+def list_refs(project_id: str, current_user=Depends(get_current_user)):
+    if project_id not in _allowed_projects(current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+    return project_store.list_refs(project_id)
+
+
+@router.post("/projects/{project_id}/refs")
+async def upload_ref(
+    project_id: str,
+    files:       list[UploadFile] = File(...),
+    linked_spec: str = Form(default=""),
+    description: str = Form(default=""),
+    current_user=Depends(get_current_user),
+):
+    if project_id not in _allowed_projects(current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not _can_write(current_user, project_id):
+        raise HTTPException(status_code=403, detail="Write permission required to upload reference docs")
+    from pathlib import Path as _P
+    allowed = {".pdf", ".md", ".txt", ".docx", ".doc", ".png", ".jpg", ".jpeg"}
+    uploaded = []
+    for f in files:
+        ext = _P(f.filename or "").suffix.lower()
+        if ext not in allowed:
+            raise HTTPException(status_code=422,
+                detail=f"'{f.filename}' — allowed: PDF, MD, TXT, DOCX, PNG, JPG")
+        content = await f.read()
+        info = project_store.save_ref(
+            project_id, f.filename or "document",
+            content, uploaded_by=current_user.get("username", "entity"),
+            linked_spec=linked_spec, description=description,
+        )
+        uploaded.append(info)
+    return {"uploaded": uploaded}
+
+
+@router.get("/projects/{project_id}/refs/{filename}")
+def serve_ref(project_id: str, filename: str, current_user=Depends(get_current_user)):
+    from fastapi.responses import FileResponse
+    if project_id not in _allowed_projects(current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+    p = project_store.get_ref_path(project_id, filename)
+    if not p:
+        raise HTTPException(status_code=404, detail="Reference doc not found")
+    return FileResponse(str(p), filename=filename)
+
+
+@router.delete("/projects/{project_id}/refs/{filename}", status_code=204)
+def delete_ref(project_id: str, filename: str, current_user=Depends(get_current_user)):
+    if project_id not in _allowed_projects(current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+    if not _can_write(current_user, project_id):
+        raise HTTPException(status_code=403, detail="Write permission required")
+    try:
+        project_store.delete_ref(project_id, filename)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))

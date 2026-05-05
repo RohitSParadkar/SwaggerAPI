@@ -104,7 +104,8 @@ def get_user_by_username(username: str) -> Optional[dict]:
 
 
 def get_user_by_id(user_id: str) -> Optional[dict]:
-    return _load().get(user_id)
+    u = _load().get(user_id)
+    return _safe(u) if u else None
 
 
 def create_user(username: str, password: str, role: str = "entity",
