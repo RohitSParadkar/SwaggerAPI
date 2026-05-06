@@ -188,10 +188,19 @@ def view_ref_inline(project_id: str, filename: str, current_user=Depends(get_cur
                         headers={"Content-Disposition": f"inline; filename=\"{filename}\""})
 
 
+@router.get("/projects/{project_id}/specs/{filename}/endpoints")
 def get_spec_endpoints(project_id: str, filename: str, current_user=Depends(get_current_user)):
     """Return flat list of API endpoints with request/response examples from the stored spec."""
     if project_id not in _allowed_projects(current_user):
         raise HTTPException(status_code=403, detail="Access denied")
+
+    # Per-spec access check for non-admin users
+    uid = current_user.get("sub", "")
+    if current_user.get("role") != "admin":
+        accessible = set(project_store.get_accessible_specs(project_id, uid))
+        if filename not in accessible:
+            raise HTTPException(status_code=403, detail="Access denied to this spec")
+
     spec = project_store.get_spec_content(project_id, filename)
     if spec is None:
         raise HTTPException(status_code=404, detail="Spec not found")

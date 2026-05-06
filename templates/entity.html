@@ -672,7 +672,7 @@ async function loadExplorer(){
     const specs = await api('GET',`/api/entity/projects/${pid}/specs`) || [];
     if(!specs.length){
       loadEl.style.display='none';
-      tableEl.innerHTML='<div class="empty-state" style="padding:3rem">No API contracts in this project yet.</div>';
+      tableEl.innerHTML='<div class="empty-state" style="padding:3rem">No API contracts assigned to your account for this project.</div>';
       return;
     }
     const results = await Promise.all(specs.map(async s=>{
@@ -684,7 +684,7 @@ async function loadExplorer(){
     _exAllEndpoints = results.flat();
     loadEl.style.display='none';
     if(!_exAllEndpoints.length){
-      tableEl.innerHTML='<div class="empty-state" style="padding:3rem">No endpoints found in this project&#39;s specs.</div>';
+      tableEl.innerHTML='<div class="empty-state" style="padding:3rem">No endpoints found in your accessible specs for this project.</div>';
       return;
     }
     _populateExFilters();
