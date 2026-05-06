@@ -1375,8 +1375,15 @@ document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePdfModal(); 
 async function archiveAdminRef(pid, filename){
   if(!confirm(`Archive "${filename}"? It will be moved to Backups and removed from active docs.`)) return;
   try{
-    await api('POST',`/api/admin/projects/${pid}/refs/${filename}/backup`);
+    await api('POST',`/api/admin/projects/${pid}/refs/${encodeURIComponent(filename)}/backup`);
     toast('Archived to Backups'); loadAdminRefDocs();
+  }catch(e){ toast(e,true); }
+}
+async function deleteAdminRef(pid, filename){
+  if(!confirm(`Permanently delete "${filename}"? This cannot be undone.`)) return;
+  try{
+    await api('DELETE',`/api/admin/projects/${pid}/refs/${encodeURIComponent(filename)}`);
+    toast('Deleted'); loadAdminRefDocs();
   }catch(e){ toast(e,true); }
 }
 async function archiveAdminSpec(pid, filename){
