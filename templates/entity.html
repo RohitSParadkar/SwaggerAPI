@@ -424,7 +424,7 @@
 const token = () => localStorage.getItem('token');
 if(!token()) window.location='/login.html';
 
-let allProjects=[], navData={}, currentSpecsProjectId=null, allSpecsForProject=[];
+let allProjects=[], navData={}, currentSpecsProjectId=null, allSpecsForProject=[], allRefsForProject=[];
 let _fpAll=[], _fpFiltered=[], _fpPid='', _fpCollapsed={};
 
 // ── Page routing ──────────────────────────────────────────────────────────────
@@ -513,12 +513,69 @@ document.getElementById('view-version').addEventListener('change',function(){
   const doc=(navData[pid]||[]).find(d=>d.base_name===base); if(!doc) return;
   const v=doc.versions.find(x=>x.filename===this.value); if(v) onVersionSelect(pid,v);
 });
-function onVersionSelect(pid,v){
+async function onVersionSelect(pid,v){
   document.getElementById('open-swagger-btn').disabled=false;
   document.getElementById('view-json-btn').style.display='inline-flex';
   document.getElementById('explorer-btn').style.display='inline-flex';
   const badge=document.getElementById('version-badge'); badge.style.display='inline-block';
-  badge.innerHTML=`<span class="badge badge-ver">v${v.version_num} — ${v.version}</span> <span style="font-size:12px;color:#64748b">${v.filename}</span>`;
+  // Reset badge content to version info only
+  badge.innerHTML='';
+  const verSpan=document.createElement('span'); verSpan.className='badge badge-ver'; verSpan.textContent=`v${v.version_num} — ${v.version}`; badge.appendChild(verSpan);
+  const fileSpan=document.createElement('span'); fileSpan.style.cssText='font-size:12px;color:#64748b;margin-left:6px'; fileSpan.textContent=v.filename; badge.appendChild(fileSpan);
+
+  // Add ref-docs row below the btn-row (create once, reuse)
+  let refRow=document.getElementById('ref-docs-navbar-row');
+  if(!refRow){
+    refRow=document.createElement('div');
+    refRow.id='ref-docs-navbar-row';
+    refRow.style.cssText='display:none;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid #e2e8f0';
+    const label=document.createElement('span');
+    label.style.cssText='font-size:11px;font-weight:600;color:#64748b;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap';
+    label.textContent='REF DOCS';
+    refRow.appendChild(label);
+    // Insert after the btn-row inside the card
+    const btnRow=document.getElementById('open-swagger-btn').closest('.btn-row');
+    btnRow.parentNode.insertBefore(refRow,btnRow.nextSibling);
+  }
+  // Clear previous ref pills (keep the label)
+  while(refRow.children.length>1) refRow.removeChild(refRow.lastChild);
+  refRow.style.display='none';
+
+  // Fetch linked reference docs and render as clickable pills
+  try{
+    const refs=await api('GET',`/api/entity/projects/${pid}/refs`)||[];
+    const linkedRefs=refs.filter(r=>r.linked_spec===v.filename);
+    const previewable=new Set(['pdf','png','jpg','jpeg']);
+    if(linkedRefs.length){
+      linkedRefs.forEach(r=>{
+        if(previewable.has(r.format)){
+          const btn=document.createElement('button');
+          btn.className='btn btn-sm';
+          btn.style.cssText='background:#7c3aed;color:#fff;border-color:#7c3aed;white-space:nowrap';
+          btn.textContent=`📎 ${r.filename}`;
+          btn.title=`Preview: ${r.filename}`;
+          btn.addEventListener('click',function(){
+            openPdfModal(
+              `/api/entity/projects/${pid}/refs/${encodeURIComponent(r.filename)}/view?token=${token()}`,
+              r.filename,
+              `/api/entity/projects/${pid}/refs/${encodeURIComponent(r.filename)}?token=${token()}`
+            );
+          });
+          refRow.appendChild(btn);
+        }else{
+          const a=document.createElement('a');
+          a.className='btn btn-sm';
+          a.style.cssText='background:#7c3aed;color:#fff;border-color:#7c3aed;white-space:nowrap';
+          a.href=`/api/entity/projects/${pid}/refs/${encodeURIComponent(r.filename)}?token=${token()}`;
+          a.target='_blank';
+          a.textContent=`📎 ${r.filename} ↗`;
+          a.title=`Open: ${r.filename}`;
+          refRow.appendChild(a);
+        }
+      });
+      refRow.style.display='flex';
+    }
+  }catch(_){}
   loadSpecsTable(pid);
 }
 function openSwagger(){ window.open('/docs','_blank'); }
@@ -553,7 +610,13 @@ async function loadSpecsTable(pid){
   const proj=allProjects.find(p=>p.id===pid);
   document.getElementById('specs-card').style.display='block';
   document.getElementById('specs-card-title').textContent=(proj?proj.name:pid)+' — API Contracts';
-  allSpecsForProject=await api('GET',`/api/entity/projects/${pid}/specs`)||[];
+  // Fetch specs and refs in parallel so ref-doc buttons appear inline
+  [allSpecsForProject, allRefsForProject] = await Promise.all([
+    api('GET',`/api/entity/projects/${pid}/specs`),
+    api('GET',`/api/entity/projects/${pid}/refs`),
+  ]);
+  allSpecsForProject = allSpecsForProject||[];
+  allRefsForProject  = allRefsForProject||[];
   populateSpecFilters(); filterSpecsTable();
 }
 function populateSpecFilters(){
@@ -571,17 +634,63 @@ function filterSpecsTable(){
 function renderSpecsTable(specs){
   const el=document.getElementById('specs-table');
   if(!specs.length){ el.innerHTML='<div class="empty-state">No specs match the filter.</div>'; return; }
-  el.innerHTML=`<table><thead><tr><th>Document</th><th>Version</th><th>Format</th><th>Uploaded by</th><th>Notes</th><th>Size</th><th></th></tr></thead><tbody>
-    ${specs.map(s=>`<tr>
-      <td><strong>${s.base_name}</strong><br><span style="font-size:11px;color:#94a3b8">${s.filename}</span></td>
+  const pid=currentSpecsProjectId;
+  const previewable=new Set(['pdf','png','jpg','jpeg']);
+  // Build table structure
+  el.innerHTML='<table><thead><tr><th>Document</th><th>Version</th><th>Format</th><th>Uploaded by</th><th>Notes</th><th>Size</th><th></th></tr></thead><tbody id="specs-tbody"></tbody></table>';
+  const tbody=document.getElementById('specs-tbody');
+  specs.forEach(s=>{
+    const linkedRefs=(allRefsForProject||[]).filter(r=>r.linked_spec===s.filename);
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td><strong>${s.base_name}</strong><br><span style="font-size:11px;color:#94a3b8">${s.filename}</span></td>
       <td><span class="badge badge-ver">v${s.version_num} — ${s.version}</span></td>
       <td><span class="badge badge-fmt">${(s.format||'yaml').toUpperCase()}</span></td>
       <td style="font-size:12px;color:#64748b">${s.uploaded_by}</td>
       <td style="font-size:12px;color:#94a3b8;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.notes||'—'}</td>
       <td style="font-size:12px;color:#94a3b8">${s.size<1024?s.size+'B':Math.round(s.size/1024)+'KB'}</td>
-      <td><a href="/api/entity/projects/${currentSpecsProjectId}/specs/${s.filename}?token=${token()}" target="_blank" class="btn btn-sm">View JSON ↗</a></td>
-    </tr>`).join('')}
-  </tbody></table>`;
+      <td id="actions-cell-placeholder"></td>`;
+    // Build actions cell with proper event listeners (no onclick string)
+    const actionsCell=tr.querySelector('#actions-cell-placeholder');
+    actionsCell.removeAttribute('id');
+    const actionsDiv=document.createElement('div');
+    actionsDiv.style.cssText='display:flex;gap:4px;flex-wrap:wrap';
+    const viewLink=document.createElement('a');
+    viewLink.href=`/api/entity/projects/${pid}/specs/${s.filename}?token=${token()}`;
+    viewLink.target='_blank';
+    viewLink.className='btn btn-sm';
+    viewLink.textContent='View JSON ↗';
+    actionsDiv.appendChild(viewLink);
+    linkedRefs.forEach(r=>{
+      if(previewable.has(r.format)){
+        const btn=document.createElement('button');
+        btn.className='btn btn-sm';
+        btn.style.cssText='background:#7c3aed;color:#fff;border-color:#7c3aed;white-space:nowrap';
+        btn.title='Preview: '+r.filename;
+        btn.textContent='📎 '+r.filename;
+        (function(ref){
+          btn.addEventListener('click',function(){
+            openPdfModal(
+              '/api/entity/projects/'+pid+'/refs/'+encodeURIComponent(ref.filename)+'/view?token='+token(),
+              ref.filename,
+              '/api/entity/projects/'+pid+'/refs/'+encodeURIComponent(ref.filename)+'?token='+token()
+            );
+          });
+        })(r);
+        actionsDiv.appendChild(btn);
+      }else{
+        const a=document.createElement('a');
+        a.href=`/api/entity/projects/${pid}/refs/${encodeURIComponent(r.filename)}?token=${token()}`;
+        a.target='_blank';
+        a.className='btn btn-sm';
+        a.style.cssText='background:#7c3aed;color:#fff;border-color:#7c3aed;white-space:nowrap';
+        a.title='Open: '+r.filename;
+        a.textContent='📎 '+r.filename+' ↗';
+        actionsDiv.appendChild(a);
+      }
+    });
+    actionsCell.appendChild(actionsDiv);
+    tbody.appendChild(tr);
+  });
 }
 async function refreshSpecs(){
   if(currentSpecsProjectId){ delete navData[currentSpecsProjectId]; await loadSpecsTable(currentSpecsProjectId);
@@ -672,7 +781,7 @@ async function loadExplorer(){
     const specs = await api('GET',`/api/entity/projects/${pid}/specs`) || [];
     if(!specs.length){
       loadEl.style.display='none';
-      tableEl.innerHTML='<div class="empty-state" style="padding:3rem">No API contracts assigned to your account for this project.</div>';
+      tableEl.innerHTML='<div class="empty-state" style="padding:3rem">No API contracts in this project yet.</div>';
       return;
     }
     const results = await Promise.all(specs.map(async s=>{
@@ -684,7 +793,7 @@ async function loadExplorer(){
     _exAllEndpoints = results.flat();
     loadEl.style.display='none';
     if(!_exAllEndpoints.length){
-      tableEl.innerHTML='<div class="empty-state" style="padding:3rem">No endpoints found in your accessible specs for this project.</div>';
+      tableEl.innerHTML='<div class="empty-state" style="padding:3rem">No endpoints found in this project&#39;s specs.</div>';
       return;
     }
     _populateExFilters();
@@ -912,24 +1021,47 @@ async function loadRefDocs(){
   const refs=await api('GET',`/api/entity/projects/${pid}/refs`)||[];
   if(!refs.length){ el.innerHTML='<div class="empty-state">No reference documents uploaded yet.</div>'; return; }
   const fmtBadge=fmt=>{ const cls={pdf:'fmt-pdf',md:'fmt-md',txt:'fmt-txt',docx:'fmt-docx',doc:'fmt-doc',png:'fmt-img',jpg:'fmt-img',jpeg:'fmt-img'}[fmt]||'fmt-txt'; return `<span class="badge ${cls}">${fmt.toUpperCase()}</span>`; };
-  const previewable = new Set(['pdf','png','jpg','jpeg']);
-  el.innerHTML=`<table><thead><tr><th>File</th><th>Format</th><th>Linked Spec</th><th>Description</th><th>Uploaded by</th><th>Date</th><th></th></tr></thead><tbody>
-    ${refs.map(r=>`<tr>
-      <td><strong style="font-size:13px">${r.filename}</strong><br><span style="font-size:11px;color:#94a3b8">${r.size<1024?r.size+'B':Math.round(r.size/1024)+'KB'}</span></td>
+  const previewable=new Set(['pdf','png','jpg','jpeg']);
+  el.innerHTML='<table><thead><tr><th>File</th><th>Format</th><th>Linked Spec</th><th>Description</th><th>Uploaded by</th><th>Date</th><th></th></tr></thead><tbody id="ref-tbody"></tbody></table>';
+  const tbody=document.getElementById('ref-tbody');
+  refs.forEach(r=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td><strong style="font-size:13px">${r.filename}</strong><br><span style="font-size:11px;color:#94a3b8">${r.size<1024?r.size+'B':Math.round(r.size/1024)+'KB'}</span></td>
       <td>${fmtBadge(r.format)}</td>
       <td style="font-size:12px;color:#64748b">${r.linked_spec||'—'}</td>
       <td style="font-size:12px;color:#94a3b8;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description||'—'}</td>
       <td style="font-size:12px;color:#64748b">${r.uploaded_by}</td>
       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">${new Date(r.uploaded_at).toLocaleDateString()}</td>
-      <td>
-        <div style="display:flex;gap:4px">
-          ${previewable.has(r.format)
-            ? `<button class="btn btn-sm btn-primary" onclick="openPdfModal('/api/entity/projects/${pid}/refs/${r.filename}/view?token=${token()}','${r.filename}','/api/entity/projects/${pid}/refs/${r.filename}?token=${token()}')">👁 Preview</button>`
-            : `<a href="/api/entity/projects/${pid}/refs/${r.filename}?token=${token()}" target="_blank" class="btn btn-sm">Open ↗</a>`}
-        </div>
-      </td>
-    </tr>`).join('')}
-  </tbody></table>`;
+      <td id="ref-action-placeholder"></td>`;
+    const actionCell=tr.querySelector('#ref-action-placeholder');
+    actionCell.removeAttribute('id');
+    const div=document.createElement('div');
+    div.style.cssText='display:flex;gap:4px';
+    if(previewable.has(r.format)){
+      const btn=document.createElement('button');
+      btn.className='btn btn-sm btn-primary';
+      btn.textContent='👁 Preview';
+      (function(ref){
+        btn.addEventListener('click',function(){
+          openPdfModal(
+            '/api/entity/projects/'+pid+'/refs/'+encodeURIComponent(ref.filename)+'/view?token='+token(),
+            ref.filename,
+            '/api/entity/projects/'+pid+'/refs/'+encodeURIComponent(ref.filename)+'?token='+token()
+          );
+        });
+      })(r);
+      div.appendChild(btn);
+    }else{
+      const a=document.createElement('a');
+      a.href='/api/entity/projects/'+pid+'/refs/'+encodeURIComponent(r.filename)+'?token='+token();
+      a.target='_blank';
+      a.className='btn btn-sm';
+      a.textContent='Open ↗';
+      div.appendChild(a);
+    }
+    actionCell.appendChild(div);
+    tbody.appendChild(tr);
+  });
 }
 function rdv(e,on){ e.preventDefault(); document.getElementById('ref-dz').classList.toggle('drag',on); }
 function rdd(e){ e.preventDefault(); document.getElementById('ref-dz').classList.remove('drag'); uploadRefs(e.dataTransfer.files); }

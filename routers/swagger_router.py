@@ -65,6 +65,26 @@ async def swagger_ui(request: Request):
             "permission": perms.get(proj["id"], "read"),
             "documents": []
         }
+        # Pre-load refs for this project so we can embed them per-version
+        if is_admin:
+            all_refs = project_store.list_refs(proj["id"])
+        else:
+            accessible_refs = set(project_store.get_accessible_refs(proj["id"], uid))
+            all_refs = [r for r in project_store.list_refs(proj["id"])
+                        if r["filename"] in accessible_refs]
+        # Build a map: spec_filename -> list of ref objects
+        refs_by_spec: dict[str, list] = {}
+        for r in all_refs:
+            ls = r.get("linked_spec", "")
+            if ls:
+                refs_by_spec.setdefault(ls, []).append({
+                    "filename":    r["filename"],
+                    "format":      r["format"],
+                    "description": r.get("description", ""),
+                    "view_url":    f"{base}/api/entity/projects/{proj['id']}/refs/{r['filename']}/view?token={token}" if token else f"{base}/api/entity/projects/{proj['id']}/refs/{r['filename']}/view",
+                    "download_url": f"{base}/api/entity/projects/{proj['id']}/refs/{r['filename']}?token={token}" if token else f"{base}/api/entity/projects/{proj['id']}/refs/{r['filename']}",
+                })
+
         for doc in all_docs:
             doc_entry = {"base_name": doc["base_name"], "versions": []}
             for v in doc["versions"]:
@@ -77,6 +97,7 @@ async def swagger_ui(request: Request):
                     "version_num": v["version_num"],
                     "url":         url,
                     "label":       f"v{v['version_num']} — {v['version']}",
+                    "refs":        refs_by_spec.get(v["filename"], []),
                 })
             proj_entry["documents"].append(doc_entry)
         nav_data.append(proj_entry)
@@ -162,6 +183,8 @@ def _swagger_page(nav_data, write_projects, user, token, base):
     .s-ok{{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:6px;padding:7px 12px;color:#15803d}}
     .s-err{{background:#fef2f2;border:1px solid #fecaca;border-radius:6px;padding:7px 12px;color:#dc2626}}
     .bv{{display:inline-block;font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600;background:#fef9c3;color:#a16207}}
+    .ref-doc-btn{{padding:5px 11px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;text-decoration:none}}
+    .ref-doc-btn:hover{{background:#6d28d9}}
     .bn{{display:inline-block;font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600;background:#dcfce7;color:#15803d}}
     .swagger-ui .topbar{{display:none!important}}
     #swagger-ui{{min-height:calc(100vh - 99px)}}
@@ -198,7 +221,21 @@ def _swagger_page(nav_data, write_projects, user, token, base):
   </select>
   <button id="load-btn" disabled onclick="loadSelectedSpec()">Load ↗</button>
   <span id="spec-label"></span>
+  <div id="ref-doc-bar" style="display:none;align-items:center;gap:6px;flex-wrap:wrap;margin-left:8px"></div>
   <span class="bar-spacer"></span>
+</div>
+
+<!-- Reference Document Preview Modal -->
+<div id="refDocModal" onclick="if(event.target===this)closeRefModal()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:400;align-items:center;justify-content:center">
+  <div style="background:#1e293b;border-radius:12px;width:min(960px,95vw);height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,.5)">
+    <div style="padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1)">
+      <span style="font-size:16px">📎</span>
+      <h3 id="ref-modal-title" style="color:#f1f5f9;font-size:14px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Reference Document</h3>
+      <a id="ref-modal-download" href="#" download style="background:#0ea5e9;border:none;color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:5px">⬇ Download</a>
+      <button onclick="closeRefModal()" style="background:rgba(255,255,255,.1);border:none;color:#f1f5f9;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">✕ Close</button>
+    </div>
+    <iframe id="ref-modal-iframe" src="about:blank" style="flex:1;border:none;width:100%;background:#fff"></iframe>
+  </div>
 </div>
 
 <div id="upload-drawer">
@@ -322,6 +359,7 @@ function onDocumentChange() {{
   ddV.disabled = true;
   document.getElementById('load-btn').disabled = true;
   selectedUrl = null;
+  updateRefDocBar([]);
   if (!base) return;
   const proj = NAV.find(p => p.id === pid);
   const doc  = proj && proj.documents.find(d => d.base_name === base);
@@ -338,6 +376,7 @@ function onDocumentChange() {{
     ddV.value = latest.url; selectedUrl = latest.url;
     document.getElementById('load-btn').disabled = false;
     document.getElementById('spec-label').textContent = latest.filename;
+    updateRefDocBar(latest.refs || []);
   }}
 }}
 
@@ -348,6 +387,13 @@ function onVersionChange() {{
   const opt = document.getElementById('dd-version').selectedOptions[0];
   document.getElementById('spec-label').textContent =
     opt ? opt.textContent.replace('  ★ latest','').trim() : '';
+  // Find the version object to get its refs
+  const pid  = document.getElementById('dd-project').value;
+  const base = document.getElementById('dd-document').value;
+  const proj = NAV.find(p => p.id === pid);
+  const doc  = proj && proj.documents.find(d => d.base_name === base);
+  const ver  = doc && doc.versions.find(v => v.url === url);
+  updateRefDocBar(ver ? (ver.refs || []) : []);
 }}
 
 function loadSelectedSpec() {{
@@ -358,6 +404,62 @@ function loadSelectedSpec() {{
   document.getElementById('spec-label').textContent =
     opt ? opt.textContent.replace('  ★ latest','').trim() : '';
 }}
+
+// ── Reference Document bar & modal ────────────────────────────────────────────
+const PREVIEWABLE = new Set(['pdf','png','jpg','jpeg']);
+
+function updateRefDocBar(refs) {{
+  const bar = document.getElementById('ref-doc-bar');
+  while (bar.firstChild) bar.removeChild(bar.firstChild);
+  if (!refs || !refs.length) {{ bar.style.display = 'none'; return; }}
+  const label = document.createElement('span');
+  label.style.cssText = 'font-size:10px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:.07em;white-space:nowrap';
+  label.textContent = 'REF DOCS';
+  bar.appendChild(label);
+  refs.forEach(function(r) {{
+    if (PREVIEWABLE.has(r.format)) {{
+      const btn = document.createElement('button');
+      btn.className = 'ref-doc-btn';
+      btn.title = 'Preview: ' + r.filename;
+      btn.textContent = '📎 ' + r.filename;
+      (function(ref) {{
+        btn.addEventListener('click', function() {{
+          openRefModal(ref.view_url, ref.filename, ref.download_url);
+        }});
+      }})(r);
+      bar.appendChild(btn);
+    }} else {{
+      const a = document.createElement('a');
+      a.className = 'ref-doc-btn';
+      a.href = r.download_url;
+      a.target = '_blank';
+      a.title = 'Open: ' + r.filename;
+      a.textContent = '📎 ' + r.filename + ' ↗';
+      bar.appendChild(a);
+    }}
+  }});
+  bar.style.display = 'flex';
+  bar.style.alignItems = 'center';
+  bar.style.gap = '6px';
+}}
+
+function openRefModal(viewUrl, filename, downloadUrl) {{
+  document.getElementById('ref-modal-title').textContent = filename;
+  document.getElementById('ref-modal-iframe').src = viewUrl;
+  document.getElementById('ref-modal-download').href = downloadUrl;
+  document.getElementById('ref-modal-download').download = filename;
+  const modal = document.getElementById('refDocModal');
+  modal.style.display = 'flex';
+  document.body.style.overflow = 'hidden';
+}}
+
+function closeRefModal() {{
+  document.getElementById('refDocModal').style.display = 'none';
+  document.getElementById('ref-modal-iframe').src = 'about:blank';
+  document.body.style.overflow = '';
+}}
+
+document.addEventListener('keydown', e => {{ if (e.key === 'Escape') closeRefModal(); }});
 
 // ── Upload drawer ─────────────────────────────────────────────────────────────
 function toggleUpload() {{

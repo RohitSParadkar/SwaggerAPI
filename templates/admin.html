@@ -1265,28 +1265,57 @@ async function loadAdminRefDocs(){
   }
   if(!refs.length){ el.innerHTML='<div class="empty-state">No reference documents uploaded yet.</div>'; return; }
   const fmtBadge=fmt=>{ const cls={pdf:'fmt-pdf',md:'fmt-md',txt:'fmt-txt',docx:'fmt-docx',doc:'fmt-doc',png:'fmt-img',jpg:'fmt-img',jpeg:'fmt-img'}[fmt]||'fmt-txt'; return `<span class="badge ${cls}">${fmt.toUpperCase()}</span>`; };
-  el.innerHTML=`<div style="overflow-x:auto"><table style="min-width:700px"><thead><tr>
-    <th>File</th><th>Project</th><th>Format</th><th>Linked Spec</th><th>Description</th><th>Uploaded by</th><th>Date</th><th>Actions</th>
-  </tr></thead><tbody>
-    ${refs.map(r=>`<tr>
-      <td><strong>${r.filename}</strong><br><span style="font-size:11px;color:#94a3b8">${r.size<1024?r.size+'B':Math.round(r.size/1024)+'KB'}</span></td>
+  const previewable=new Set(['pdf','png','jpg','jpeg']);
+  el.innerHTML='<div style="overflow-x:auto"><table style="min-width:700px"><thead><tr><th>File</th><th>Project</th><th>Format</th><th>Linked Spec</th><th>Description</th><th>Uploaded by</th><th>Date</th><th>Actions</th></tr></thead><tbody id="aref-tbody"></tbody></table></div>';
+  const tbody=document.getElementById('aref-tbody');
+  refs.forEach(r=>{
+    const rpid=r.project_id||pid;
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td><strong>${r.filename}</strong><br><span style="font-size:11px;color:#94a3b8">${r.size<1024?r.size+'B':Math.round(r.size/1024)+'KB'}</span></td>
       <td><span class="badge badge-proj">${r.project_name||pid||'—'}</span></td>
       <td>${fmtBadge(r.format)}</td>
       <td style="font-size:12px;color:#64748b">${r.linked_spec||'—'}</td>
       <td style="font-size:12px;color:#94a3b8;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description||'—'}</td>
       <td style="font-size:12px;color:#64748b">${r.uploaded_by}</td>
       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">${new Date(r.uploaded_at).toLocaleDateString()}</td>
-      <td style="white-space:nowrap">
-        <div style="display:flex;gap:4px">
-          ${r.format==='pdf'||r.format==='png'||r.format==='jpg'||r.format==='jpeg'?
-            `<button class="btn btn-sm btn-primary" onclick="openPdfModal('/api/admin/projects/${r.project_id||pid}/refs/${r.filename}/view?token=${token()}','${r.filename}','/api/admin/projects/${r.project_id||pid}/refs/${r.filename}?token=${token()}')">👁 Preview</button>`
-            :`<a href="/api/admin/projects/${r.project_id||pid}/refs/${r.filename}?token=${token()}" target="_blank" class="btn btn-sm">Open ↗</a>`}
-          <button class="btn btn-sm" onclick="archiveAdminRef('${r.project_id||pid}','${r.filename}')">📦 Archive</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteAdminRef('${r.project_id||pid}','${r.filename}')">Delete</button>
-        </div>
-      </td>
-    </tr>`).join('')}
-  </tbody></table></div>`;
+      <td style="white-space:nowrap" id="aref-action-placeholder"></td>`;
+    const actionCell=tr.querySelector('#aref-action-placeholder');
+    actionCell.removeAttribute('id');
+    const div=document.createElement('div');
+    div.style.cssText='display:flex;gap:4px';
+    if(previewable.has(r.format)){
+      const btn=document.createElement('button');
+      btn.className='btn btn-sm btn-primary';
+      btn.textContent='👁 Preview';
+      (function(ref,rp){ btn.addEventListener('click',function(){
+        openPdfModal(
+          '/api/admin/projects/'+rp+'/refs/'+encodeURIComponent(ref.filename)+'/view?token='+token(),
+          ref.filename,
+          '/api/admin/projects/'+rp+'/refs/'+encodeURIComponent(ref.filename)+'?token='+token()
+        );
+      }); })(r,rpid);
+      div.appendChild(btn);
+    }else{
+      const a=document.createElement('a');
+      a.href='/api/admin/projects/'+rpid+'/refs/'+encodeURIComponent(r.filename)+'?token='+token();
+      a.target='_blank';
+      a.className='btn btn-sm';
+      a.textContent='Open ↗';
+      div.appendChild(a);
+    }
+    const archBtn=document.createElement('button');
+    archBtn.className='btn btn-sm';
+    archBtn.textContent='📦 Archive';
+    (function(ref,rp){ archBtn.addEventListener('click',function(){ archiveAdminRef(rp,ref.filename); }); })(r,rpid);
+    div.appendChild(archBtn);
+    const delBtn=document.createElement('button');
+    delBtn.className='btn btn-sm btn-danger';
+    delBtn.textContent='Delete';
+    (function(ref,rp){ delBtn.addEventListener('click',function(){ deleteAdminRef(rp,ref.filename); }); })(r,rpid);
+    div.appendChild(delBtn);
+    actionCell.appendChild(div);
+    tbody.appendChild(tr);
+  });
 }
 
 function ardv(e,on){ e.preventDefault(); document.getElementById('aref-dz').classList.toggle('drag',on); }

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, Request
 from fastapi.responses import JSONResponse
 import json, yaml
 
@@ -194,7 +194,7 @@ def get_spec_endpoints(project_id: str, filename: str, current_user=Depends(get_
     if project_id not in _allowed_projects(current_user):
         raise HTTPException(status_code=403, detail="Access denied")
 
-    # Per-spec access check for non-admin users
+    # Per-spec access check for non-admin entity users
     uid = current_user.get("sub", "")
     if current_user.get("role") != "admin":
         accessible = set(project_store.get_accessible_specs(project_id, uid))
@@ -377,3 +377,78 @@ def delete_ref(project_id: str, filename: str, current_user=Depends(get_current_
         project_store.delete_ref(project_id, filename)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# ── CORS Proxy (handles cross-origin API calls like Postman does) ─────────────
+
+@router.api_route("/proxy", methods=["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"])
+async def cors_proxy(request: Request, current_user=Depends(get_current_user)):
+    """
+    Proxy outbound API requests from Swagger UI Try-It-Out to bypass CORS.
+    Usage: POST /api/entity/proxy
+           Header: X-Proxy-URL: https://target-server.com/api/endpoint
+           Header: X-Proxy-Method: POST          (optional, defaults to request method)
+           Body: forwarded as-is to the target URL
+    All headers except Host, Authorization and X-Proxy-* are forwarded.
+    """
+    import httpx
+
+    target_url = request.headers.get("X-Proxy-URL", "").strip()
+    if not target_url:
+        raise HTTPException(status_code=400, detail="X-Proxy-URL header is required")
+
+    # Basic SSRF guard — block requests to private/loopback ranges
+    from urllib.parse import urlparse
+    import ipaddress
+    parsed = urlparse(target_url)
+    if not parsed.scheme in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Only http/https targets allowed")
+
+    # Forward the method, or use X-Proxy-Method override
+    method = request.headers.get("X-Proxy-Method", request.method).upper()
+    if method == "OPTIONS":
+        # Let the browser pre-flight succeed instantly
+        from fastapi.responses import Response as _R
+        return _R(status_code=200, headers={
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET,POST,PUT,PATCH,DELETE,HEAD,OPTIONS",
+            "Access-Control-Allow-Headers": "*",
+        })
+
+    # Build forwarded headers — strip hop-by-hop and our custom proxy headers
+    skip = {"host", "authorization", "x-proxy-url", "x-proxy-method",
+            "content-length", "transfer-encoding", "connection"}
+    fwd_headers = {k: v for k, v in request.headers.items() if k.lower() not in skip}
+
+    body = await request.body()
+
+    try:
+        async with httpx.AsyncClient(timeout=30, follow_redirects=True) as client:
+            resp = await client.request(
+                method=method,
+                url=target_url,
+                headers=fwd_headers,
+                content=body if body else None,
+            )
+    except httpx.ConnectError as e:
+        raise HTTPException(status_code=502, detail=f"Could not connect to target: {e}")
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="Target server timed out")
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Proxy error: {e}")
+
+    from fastapi.responses import Response as _Resp
+    # Inject CORS headers so browser accepts the proxied response
+    resp_headers = dict(resp.headers)
+    resp_headers["Access-Control-Allow-Origin"] = "*"
+    resp_headers["Access-Control-Allow-Headers"] = "*"
+    # Remove transfer-encoding that breaks FastAPI response streaming
+    resp_headers.pop("transfer-encoding", None)
+    resp_headers.pop("content-encoding", None)
+
+    return _Resp(
+        content=resp.content,
+        status_code=resp.status_code,
+        headers=resp_headers,
+        media_type=resp.headers.get("content-type"),
+    )
