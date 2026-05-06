@@ -157,6 +157,7 @@
     .pdf-modal-head .pm-close{background:rgba(255,255,255,.1);border:none;color:#f1f5f9;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
     .pdf-modal-head .pm-close:hover{background:rgba(255,255,255,.2)}
     .pdf-modal-head .pm-download{background:#0ea5e9;border:none;color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600}
+    .pdf-modal-head .pm-newtab{background:rgba(255,255,255,.12);border:none;color:#f1f5f9;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center}
     .pdf-modal-head .pm-download:hover{background:#0284c7}
     .pdf-iframe{flex:1;border:none;background:#fff}
     /* Permissions page */
@@ -458,6 +459,7 @@
   <div class="pdf-modal">
     <div class="pdf-modal-head">
       <h3 id="pdf-modal-title">Document</h3>
+      <a id="pdf-newtab-btn" href="#" target="_blank" class="pm-newtab">↗ New Tab</a>
       <a id="pdf-download-btn" href="#" download class="pm-download" onclick="">⬇ Download</a>
       <button class="pm-close" onclick="closePdfModal()">✕ Close</button>
     </div>
@@ -1338,6 +1340,7 @@ function openPdfModal(viewUrl, filename, downloadUrl){
   document.getElementById('pdf-modal-title').textContent = filename;
   document.getElementById('pdf-iframe').src = viewUrl;
   document.getElementById('pdf-download-btn').href = downloadUrl;
+  document.getElementById('pdf-newtab-btn').href = viewUrl;
   document.getElementById('pdf-download-btn').download = filename;
   document.getElementById('pdfModal').classList.add('open');
   document.body.style.overflow='hidden';

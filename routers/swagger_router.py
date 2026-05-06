@@ -185,6 +185,8 @@ def _swagger_page(nav_data, write_projects, user, token, base):
     .bv{{display:inline-block;font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600;background:#fef9c3;color:#a16207}}
     .ref-doc-btn{{padding:5px 11px;background:#7c3aed;color:#fff;border:none;border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;display:inline-flex;align-items:center;gap:5px;text-decoration:none}}
     .ref-doc-btn:hover{{background:#6d28d9}}
+    .pm-newtab{{background:rgba(255,255,255,.12);border:none;color:#f1f5f9;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center}}
+    .pm-newtab:hover{{background:rgba(255,255,255,.22)}}
     .bn{{display:inline-block;font-size:10px;padding:1px 7px;border-radius:20px;font-weight:600;background:#dcfce7;color:#15803d}}
     .swagger-ui .topbar{{display:none!important}}
     #swagger-ui{{min-height:calc(100vh - 99px)}}
@@ -231,6 +233,7 @@ def _swagger_page(nav_data, write_projects, user, token, base):
     <div style="padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1)">
       <span style="font-size:16px">📎</span>
       <h3 id="ref-modal-title" style="color:#f1f5f9;font-size:14px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Reference Document</h3>
+      <a id="ref-modal-newtab" href="#" target="_blank" class="pm-newtab">↗ New Tab</a>
       <a id="ref-modal-download" href="#" download style="background:#0ea5e9;border:none;color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center;gap:5px">⬇ Download</a>
       <button onclick="closeRefModal()" style="background:rgba(255,255,255,.1);border:none;color:#f1f5f9;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px">✕ Close</button>
     </div>
@@ -448,6 +451,7 @@ function openRefModal(viewUrl, filename, downloadUrl) {{
   document.getElementById('ref-modal-iframe').src = viewUrl;
   document.getElementById('ref-modal-download').href = downloadUrl;
   document.getElementById('ref-modal-download').download = filename;
+  document.getElementById('ref-modal-newtab').href = viewUrl;
   const modal = document.getElementById('refDocModal');
   modal.style.display = 'flex';
   document.body.style.overflow = 'hidden';
