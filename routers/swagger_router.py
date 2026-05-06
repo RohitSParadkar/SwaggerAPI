@@ -35,18 +35,37 @@ async def swagger_ui(request: Request):
         all_projects = [p for p in project_store.list_projects() if p["id"] in allowed_pids]
 
     base = str(request.base_url).rstrip("/")
+    uid  = user.get("sub", "")
+    is_admin = user.get("role") == "admin"
+
     nav_data = []
     for proj in all_projects:
-        docs = project_store.list_documents(proj["id"])
-        if not docs:
+        # Get only documents this user is allowed to see
+        if is_admin:
+            all_docs = project_store.list_documents(proj["id"])
+        else:
+            accessible = set(project_store.get_accessible_specs(proj["id"], uid))
+            all_specs  = [s for s in project_store.list_specs(proj["id"])
+                          if s["filename"] in accessible]
+            # Re-group into documents structure
+            docs_map: dict[str, list] = {}
+            for s in all_specs:
+                docs_map.setdefault(s["base_name"], []).append(s)
+            all_docs = []
+            for base_name, versions in sorted(docs_map.items()):
+                vs = sorted(versions, key=lambda x: x["version_num"])
+                all_docs.append({"base_name": base_name, "versions": vs, "latest": vs[-1]})
+
+        if not all_docs:
             continue
+
         proj_entry = {
             "id": proj["id"],
             "name": proj["name"],
             "permission": perms.get(proj["id"], "read"),
             "documents": []
         }
-        for doc in docs:
+        for doc in all_docs:
             doc_entry = {"base_name": doc["base_name"], "versions": []}
             for v in doc["versions"]:
                 url = f"{base}/api/entity/projects/{proj['id']}/specs/{v['filename']}"

@@ -133,6 +133,17 @@
     .dg-toggle{font-size:10px;color:#94a3b8;transition:transform .15s}.dg-toggle.open{transform:rotate(90deg)}
     .dg-count{font-weight:400;color:#94a3b8}
     .ex-empty{padding:3rem;text-align:center;color:#94a3b8;font-size:13px}
+    /* PDF Preview Modal */
+    .pdf-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;align-items:center;justify-content:center}
+    .pdf-modal-overlay.open{display:flex}
+    .pdf-modal{background:#1e293b;border-radius:12px;width:min(900px,95vw);height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,.5)}
+    .pdf-modal-head{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1)}
+    .pdf-modal-head h3{color:#f1f5f9;font-size:14px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pdf-modal-head .pm-close{background:rgba(255,255,255,.1);border:none;color:#f1f5f9;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+    .pdf-modal-head .pm-close:hover{background:rgba(255,255,255,.2)}
+    .pdf-modal-head .pm-download{background:#0ea5e9;border:none;color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600;text-decoration:none;display:inline-flex;align-items:center}
+    .pdf-modal-head .pm-download:hover{background:#0284c7}
+    .pdf-iframe{flex:1;border:none;background:#fff}
 
     /* ── API Explorer table (matches admin) ── */
     .ex-table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
@@ -396,6 +407,17 @@
 </div><!-- main-inner -->
 </div><!-- main -->
 
+<!-- PDF PREVIEW MODAL -->
+<div class="pdf-modal-overlay" id="pdfModal" onclick="if(event.target===this)closePdfModal()">
+  <div class="pdf-modal">
+    <div class="pdf-modal-head">
+      <h3 id="pdf-modal-title">Document</h3>
+      <a id="pdf-download-btn" href="#" download class="pm-download">⬇ Download</a>
+      <button class="pm-close" onclick="closePdfModal()">✕ Close</button>
+    </div>
+    <iframe id="pdf-iframe" class="pdf-iframe" src="about:blank"></iframe>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 <script>
@@ -890,6 +912,7 @@ async function loadRefDocs(){
   const refs=await api('GET',`/api/entity/projects/${pid}/refs`)||[];
   if(!refs.length){ el.innerHTML='<div class="empty-state">No reference documents uploaded yet.</div>'; return; }
   const fmtBadge=fmt=>{ const cls={pdf:'fmt-pdf',md:'fmt-md',txt:'fmt-txt',docx:'fmt-docx',doc:'fmt-doc',png:'fmt-img',jpg:'fmt-img',jpeg:'fmt-img'}[fmt]||'fmt-txt'; return `<span class="badge ${cls}">${fmt.toUpperCase()}</span>`; };
+  const previewable = new Set(['pdf','png','jpg','jpeg']);
   el.innerHTML=`<table><thead><tr><th>File</th><th>Format</th><th>Linked Spec</th><th>Description</th><th>Uploaded by</th><th>Date</th><th></th></tr></thead><tbody>
     ${refs.map(r=>`<tr>
       <td><strong style="font-size:13px">${r.filename}</strong><br><span style="font-size:11px;color:#94a3b8">${r.size<1024?r.size+'B':Math.round(r.size/1024)+'KB'}</span></td>
@@ -898,7 +921,13 @@ async function loadRefDocs(){
       <td style="font-size:12px;color:#94a3b8;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description||'—'}</td>
       <td style="font-size:12px;color:#64748b">${r.uploaded_by}</td>
       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">${new Date(r.uploaded_at).toLocaleDateString()}</td>
-      <td><a href="/api/entity/projects/${pid}/refs/${r.filename}?token=${token()}" target="_blank" class="btn btn-sm">Open ↗</a></td>
+      <td>
+        <div style="display:flex;gap:4px">
+          ${previewable.has(r.format)
+            ? `<button class="btn btn-sm btn-primary" onclick="openPdfModal('/api/entity/projects/${pid}/refs/${r.filename}/view?token=${token()}','${r.filename}','/api/entity/projects/${pid}/refs/${r.filename}?token=${token()}')">👁 Preview</button>`
+            : `<a href="/api/entity/projects/${pid}/refs/${r.filename}?token=${token()}" target="_blank" class="btn btn-sm">Open ↗</a>`}
+        </div>
+      </td>
     </tr>`).join('')}
   </tbody></table>`;
 }
@@ -917,53 +946,21 @@ async function uploadRefs(files){
   }catch(e){ fb.innerHTML=`<div class="err-bar">${e}</div>`; toast(String(e),true); }
 }
 
-// ── Reference Docs page ───────────────────────────────────────────────────────
-function initRefDocs(){
-  const sel=document.getElementById('ref-view-project');
-  if(sel.options.length<=1) allProjects.forEach(p=>{ const o=document.createElement('option'); o.value=p.id; o.textContent=p.name; sel.appendChild(o); });
+// ── PDF Preview Modal ─────────────────────────────────────────────────────────
+function openPdfModal(viewUrl, filename, downloadUrl){
+  document.getElementById('pdf-modal-title').textContent=filename;
+  document.getElementById('pdf-iframe').src=viewUrl;
+  document.getElementById('pdf-download-btn').href=downloadUrl;
+  document.getElementById('pdf-download-btn').download=filename;
+  document.getElementById('pdfModal').classList.add('open');
+  document.body.style.overflow='hidden';
 }
-async function onRefProjectChange(){
-  const pid=document.getElementById('ref-project').value;
-  const specSel=document.getElementById('ref-linked-spec');
-  specSel.innerHTML='<option value="">— select spec (optional) —</option>'; specSel.disabled=!pid;
-  if(!pid) return;
-  const specs=await api('GET',`/api/entity/projects/${pid}/specs`)||[];
-  specs.forEach(s=>{ const o=document.createElement('option'); o.value=s.filename; o.textContent=`${s.base_name} v${s.version_num}`; specSel.appendChild(o); });
-  document.getElementById('ref-view-project').value=pid;
-  loadRefDocs();
+function closePdfModal(){
+  document.getElementById('pdfModal').classList.remove('open');
+  document.getElementById('pdf-iframe').src='about:blank';
+  document.body.style.overflow='';
 }
-async function loadRefDocs(){
-  const pid=document.getElementById('ref-view-project').value; const el=document.getElementById('ref-table');
-  if(!pid){ el.innerHTML='<div class="empty-state">Select a project to view its reference documents</div>'; return; }
-  const refs=await api('GET',`/api/entity/projects/${pid}/refs`)||[];
-  if(!refs.length){ el.innerHTML='<div class="empty-state">No reference documents uploaded yet.</div>'; return; }
-  const fmtBadge=fmt=>{ const cls={pdf:'fmt-pdf',md:'fmt-md',txt:'fmt-txt',docx:'fmt-docx',doc:'fmt-doc',png:'fmt-img',jpg:'fmt-img',jpeg:'fmt-img'}[fmt]||'fmt-txt'; return `<span class="badge ${cls}">${fmt.toUpperCase()}</span>`; };
-  el.innerHTML=`<table><thead><tr><th>File</th><th>Format</th><th>Linked Spec</th><th>Description</th><th>Uploaded by</th><th>Date</th><th></th></tr></thead><tbody>
-    ${refs.map(r=>`<tr>
-      <td><strong style="font-size:13px">${r.filename}</strong><br><span style="font-size:11px;color:#94a3b8">${r.size<1024?r.size+'B':Math.round(r.size/1024)+'KB'}</span></td>
-      <td>${fmtBadge(r.format)}</td>
-      <td style="font-size:12px;color:#64748b">${r.linked_spec||'—'}</td>
-      <td style="font-size:12px;color:#94a3b8;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description||'—'}</td>
-      <td style="font-size:12px;color:#64748b">${r.uploaded_by}</td>
-      <td style="font-size:12px;color:#94a3b8;white-space:nowrap">${new Date(r.uploaded_at).toLocaleDateString()}</td>
-      <td><a href="/api/entity/projects/${pid}/refs/${r.filename}?token=${token()}" target="_blank" class="btn btn-sm">Open ↗</a></td>
-    </tr>`).join('')}
-  </tbody></table>`;
-}
-function rdv(e,on){ e.preventDefault(); document.getElementById('ref-dz').classList.toggle('drag',on); }
-function rdd(e){ e.preventDefault(); document.getElementById('ref-dz').classList.remove('drag'); uploadRefs(e.dataTransfer.files); }
-async function uploadRefs(files){
-  const pid=document.getElementById('ref-project').value; const desc=document.getElementById('ref-description').value.trim(); const linked=document.getElementById('ref-linked-spec').value; const fb=document.getElementById('ref-upload-feedback');
-  if(!pid){ toast('Select a project first',true); document.getElementById('ref-fi').value=''; return; }
-  const fd=new FormData(); Array.from(files).forEach(f=>fd.append('files',f)); if(desc) fd.append('description',desc); if(linked) fd.append('linked_spec',linked);
-  fb.innerHTML='<div style="color:#6366f1;font-size:13px;padding:8px 0">Uploading…</div>';
-  document.getElementById('ref-fi').value='';
-  try{
-    const r=await fetch(`/api/entity/projects/${pid}/refs`,{method:'POST',headers:{'Authorization':'Bearer '+token()},body:fd}); const d=await r.json(); if(!r.ok) throw d.detail;
-    fb.innerHTML=`<div class="success-bar">Uploaded: ${d.uploaded.map(u=>u.filename).join(', ')}</div>`; setTimeout(()=>fb.innerHTML='',6000); toast(`${d.uploaded.length} file(s) uploaded`);
-    loadRefDocs();
-  }catch(e){ fb.innerHTML=`<div class="err-bar">${e}</div>`; toast(String(e),true); }
-}
+document.addEventListener('keydown',e=>{ if(e.key==='Escape') closePdfModal(); });
 
 // ── Shared explorer render (drawer) ───────────────────────────────────────────
 function renderExBody(bodyId, filtered, collapsed, prefix){

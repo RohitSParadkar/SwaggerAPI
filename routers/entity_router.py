@@ -108,7 +108,11 @@ def project_specs(project_id: str, current_user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Access denied to this project")
     if not project_store.get_project(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
-    return project_store.list_specs(project_id)
+    uid = current_user.get("sub", "")
+    if current_user.get("role") == "admin":
+        return project_store.list_specs(project_id)
+    accessible = set(project_store.get_accessible_specs(project_id, uid))
+    return [s for s in project_store.list_specs(project_id) if s["filename"] in accessible]
 
 
 # ── Documents (grouped by base name, with versions list) ─────────────────────
@@ -119,12 +123,71 @@ def project_documents(project_id: str, current_user=Depends(get_current_user)):
         raise HTTPException(status_code=403, detail="Access denied to this project")
     if not project_store.get_project(project_id):
         raise HTTPException(status_code=404, detail="Project not found")
-    return project_store.list_documents(project_id)
+    uid = current_user.get("sub", "")
+    if current_user.get("role") == "admin":
+        return project_store.list_documents(project_id)
+    accessible = set(project_store.get_accessible_specs(project_id, uid))
+    all_docs = project_store.list_documents(project_id)
+    filtered = []
+    for doc in all_docs:
+        vs = [v for v in doc["versions"] if v["filename"] in accessible]
+        if vs:
+            filtered.append({"base_name": doc["base_name"], "versions": vs, "latest": vs[-1]})
+    return filtered
 
 
-# ── Single spec ───────────────────────────────────────────────────────────────
+@router.get("/projects/{project_id}/refs")
+def list_refs(project_id: str, current_user=Depends(get_current_user)):
+    if project_id not in _allowed_projects(current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+    uid = current_user.get("sub", "")
+    if current_user.get("role") == "admin":
+        return project_store.list_refs(project_id)
+    accessible = set(project_store.get_accessible_refs(project_id, uid))
+    return [r for r in project_store.list_refs(project_id) if r["filename"] in accessible]
 
-@router.get("/projects/{project_id}/specs/{filename}/endpoints")
+
+@router.get("/projects/{project_id}/refs/{filename}/view")
+def view_ref_inline(project_id: str, filename: str, current_user=Depends(get_current_user)):
+    """Serve ref file inline for browser preview (PDF viewer, images)."""
+    from fastapi.responses import FileResponse
+    import mimetypes
+    if project_id not in _allowed_projects(current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+    # Check doc-level access
+    uid = current_user.get("sub", "")
+    if current_user.get("role") != "admin":
+        accessible = set(project_store.get_accessible_refs(project_id, uid))
+        if filename not in accessible:
+            raise HTTPException(status_code=403, detail="Access denied to this document")
+    p = project_store.get_ref_path(project_id, filename)
+    if not p:
+        raise HTTPException(status_code=404, detail="Reference doc not found")
+    mt, _ = mimetypes.guess_type(filename)
+    return FileResponse(str(p), media_type=mt or "application/octet-stream",
+                        headers={"Content-Disposition": f"inline; filename=\"{filename}\""})
+
+
+@router.get("/projects/{project_id}/refs/{filename}/view")
+def view_ref_inline(project_id: str, filename: str, current_user=Depends(get_current_user)):
+    """Serve ref file inline for browser PDF/image preview."""
+    from fastapi.responses import FileResponse
+    import mimetypes
+    if project_id not in _allowed_projects(current_user):
+        raise HTTPException(status_code=403, detail="Access denied")
+    uid = current_user.get("sub", "")
+    if current_user.get("role") != "admin":
+        accessible = set(project_store.get_accessible_refs(project_id, uid))
+        if filename not in accessible:
+            raise HTTPException(status_code=403, detail="Access denied to this document")
+    p = project_store.get_ref_path(project_id, filename)
+    if not p:
+        raise HTTPException(status_code=404, detail="Reference doc not found")
+    mt, _ = mimetypes.guess_type(filename)
+    return FileResponse(str(p), media_type=mt or "application/octet-stream",
+                        headers={"Content-Disposition": f"inline; filename=\"{filename}\""})
+
+
 def get_spec_endpoints(project_id: str, filename: str, current_user=Depends(get_current_user)):
     """Return flat list of API endpoints with request/response examples from the stored spec."""
     if project_id not in _allowed_projects(current_user):
@@ -249,13 +312,6 @@ async def entity_upload_spec(
 
 # ── Reference docs ────────────────────────────────────────────────────────────
 
-@router.get("/projects/{project_id}/refs")
-def list_refs(project_id: str, current_user=Depends(get_current_user)):
-    if project_id not in _allowed_projects(current_user):
-        raise HTTPException(status_code=403, detail="Access denied")
-    return project_store.list_refs(project_id)
-
-
 @router.post("/projects/{project_id}/refs")
 async def upload_ref(
     project_id: str,
@@ -291,6 +347,11 @@ def serve_ref(project_id: str, filename: str, current_user=Depends(get_current_u
     from fastapi.responses import FileResponse
     if project_id not in _allowed_projects(current_user):
         raise HTTPException(status_code=403, detail="Access denied")
+    uid = current_user.get("sub", "")
+    if current_user.get("role") != "admin":
+        accessible = set(project_store.get_accessible_refs(project_id, uid))
+        if filename not in accessible:
+            raise HTTPException(status_code=403, detail="Access denied to this document")
     p = project_store.get_ref_path(project_id, filename)
     if not p:
         raise HTTPException(status_code=404, detail="Reference doc not found")

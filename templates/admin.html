@@ -148,6 +148,32 @@
     .ex-params-table tr:last-child td{border-bottom:none}
     .ex-req-badge{font-size:9px;background:#fee2e2;color:#991b1b;padding:1px 5px;border-radius:8px;font-weight:600}
     .ex-in-badge{font-size:9px;background:#f1f5f9;color:#475569;padding:1px 5px;border-radius:8px}
+    /* PDF Preview Modal */
+    .pdf-modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:300;align-items:center;justify-content:center}
+    .pdf-modal-overlay.open{display:flex}
+    .pdf-modal{background:#1e293b;border-radius:12px;width:min(900px,95vw);height:90vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:0 25px 60px rgba(0,0,0,.5)}
+    .pdf-modal-head{padding:12px 16px;display:flex;align-items:center;gap:10px;border-bottom:1px solid rgba(255,255,255,.1)}
+    .pdf-modal-head h3{color:#f1f5f9;font-size:14px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+    .pdf-modal-head .pm-close{background:rgba(255,255,255,.1);border:none;color:#f1f5f9;padding:6px 12px;border-radius:6px;cursor:pointer;font-size:12px}
+    .pdf-modal-head .pm-close:hover{background:rgba(255,255,255,.2)}
+    .pdf-modal-head .pm-download{background:#0ea5e9;border:none;color:#fff;padding:6px 14px;border-radius:6px;cursor:pointer;font-size:12px;font-weight:600}
+    .pdf-modal-head .pm-download:hover{background:#0284c7}
+    .pdf-iframe{flex:1;border:none;background:#fff}
+    /* Permissions page */
+    .perm-grid{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+    @media(max-width:700px){.perm-grid{grid-template-columns:1fr}}
+    .doc-check-list{max-height:260px;overflow-y:auto;border:1px solid #e2e8f0;border-radius:8px;padding:6px}
+    .doc-check-item{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:6px;cursor:pointer;transition:background .1s}
+    .doc-check-item:hover{background:#f8fafc}
+    .doc-check-item input[type=checkbox]{width:15px;height:15px;cursor:pointer;accent-color:#6366f1}
+    .doc-check-item label{font-size:12px;color:#374151;cursor:pointer;flex:1}
+    .doc-check-item .dc-badge{font-size:10px;padding:1px 6px;border-radius:10px;background:#f0f9ff;color:#0369a1}
+    .perm-user-card{border:1px solid #e2e8f0;border-radius:10px;padding:1rem;margin-bottom:.75rem}
+    .perm-user-header{display:flex;align-items:center;gap:8px;margin-bottom:.75rem}
+    .perm-section-label{font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.05em;margin-bottom:6px;margin-top:10px}
+    .perm-section-label:first-child{margin-top:0}
+    /* Backup page */
+    .bak-badge{display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;background:#fef9c3;color:#a16207;font-weight:500}
   </style>
 </head>
 <body>
@@ -166,6 +192,8 @@
     <a class="nav-item" onclick="showPage('specs',this)"><span class="ic">📄</span> API Contracts</a>
     <a class="nav-item" onclick="showPage('explorer',this)"><span class="ic">🔍</span> API Explorer</a>
     <a class="nav-item" onclick="showPage('refdocs',this)"><span class="ic">📚</span> Reference Docs</a>
+    <a class="nav-item" onclick="showPage('permissions',this)"><span class="ic">🔐</span> Permissions</a>
+    <a class="nav-item" onclick="showPage('backups',this)"><span class="ic">🗄</span> Backups</a>
     <div class="nav-section">View</div>
     <a class="nav-item" href="/docs" target="_blank"><span class="ic">🔗</span> Swagger UI</a>
   </div>
@@ -367,6 +395,73 @@
       </div>
     </div>
 
+    <!-- PERMISSIONS -->
+    <div class="page" id="page-permissions">
+      <div class="page-title">Document Permissions</div>
+      <div class="page-sub">Control which users can see each API contract and reference document within a project</div>
+
+      <div class="card" style="margin-bottom:1rem">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label style="font-size:12px;font-weight:600;color:#374151">Project</label>
+          <select class="inp" id="perm-project" onchange="loadPermissions()" style="min-width:220px;max-width:320px">
+            <option value="">— choose a project —</option>
+          </select>
+          <span id="perm-loading" style="font-size:12px;color:#94a3b8;display:none">Loading…</span>
+          <button class="btn btn-indigo btn-sm" id="perm-save-btn" onclick="savePermissions()" style="display:none;margin-left:auto">💾 Save Permissions</button>
+        </div>
+        <div id="perm-legend" style="display:none;margin-top:10px;font-size:12px;color:#64748b">
+          ☑ checked = only selected users can see this document &nbsp;|&nbsp; ☐ unchecked = all project users can see it
+        </div>
+      </div>
+
+      <div id="perm-content" style="display:none">
+        <div class="perm-grid" id="perm-user-grid"></div>
+      </div>
+    </div>
+
+    <!-- BACKUPS -->
+    <div class="page" id="page-backups">
+      <div class="page-title">Backups</div>
+      <div class="page-sub">Archive old API contracts and reference docs, or restore them to active</div>
+
+      <div class="card" style="margin-bottom:1rem">
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <label style="font-size:12px;font-weight:600;color:#374151">Project</label>
+          <select class="inp" id="bak-project" onchange="loadBackups()" style="min-width:220px;max-width:320px">
+            <option value="">— choose a project —</option>
+          </select>
+          <span id="bak-loading" style="font-size:12px;color:#94a3b8;display:none">Loading…</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem" id="bak-grids">
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:12px 14px;border-bottom:1px solid #f1f5f9;font-weight:600;font-size:13px;display:flex;justify-content:space-between;align-items:center">
+            📄 API Contract Backups
+          </div>
+          <div id="bak-specs-table"><div class="empty-state" style="padding:2rem">Select a project</div></div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden">
+          <div style="padding:12px 14px;border-bottom:1px solid #f1f5f9;font-weight:600;font-size:13px">
+            📚 Reference Doc Backups
+          </div>
+          <div id="bak-refs-table"><div class="empty-state" style="padding:2rem">Select a project</div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- PDF PREVIEW MODAL -->
+<div class="pdf-modal-overlay" id="pdfModal" onclick="if(event.target===this)closePdfModal()">
+  <div class="pdf-modal">
+    <div class="pdf-modal-head">
+      <h3 id="pdf-modal-title">Document</h3>
+      <a id="pdf-download-btn" href="#" download class="pm-download" onclick="">⬇ Download</a>
+      <button class="pm-close" onclick="closePdfModal()">✕ Close</button>
+    </div>
+    <iframe id="pdf-iframe" class="pdf-iframe" src="about:blank"></iframe>
   </div>
 </div>
 <div class="modal-overlay" id="projectModal">
@@ -469,8 +564,10 @@ function showPage(name,btn){
   if(name==='projects')  loadProjects();
   if(name==='users')     loadUsers();
   if(name==='specs')     loadSpecsPage();
-  if(name==='explorer')  initExplorer();
-  if(name==='refdocs')   initAdminRefDocs();
+  if(name==='explorer')    initExplorer();
+  if(name==='refdocs')     initAdminRefDocs();
+  if(name==='permissions') initPermissions();
+  if(name==='backups')     initBackups();
 }
 
 function closeModal(id){ document.getElementById(id).classList.remove('open'); }
@@ -1159,7 +1256,6 @@ async function loadAdminRefDocs(){
   if(pid){
     refs=await api('GET',`/api/admin/projects/${pid}/refs`)||[];
   }else{
-    // All projects
     const all=[];
     for(const proj of allProjects){
       const r=await api('GET',`/api/admin/projects/${proj.id}/refs`)||[];
@@ -1180,9 +1276,14 @@ async function loadAdminRefDocs(){
       <td style="font-size:12px;color:#94a3b8;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.description||'—'}</td>
       <td style="font-size:12px;color:#64748b">${r.uploaded_by}</td>
       <td style="font-size:12px;color:#94a3b8;white-space:nowrap">${new Date(r.uploaded_at).toLocaleDateString()}</td>
-      <td style="display:flex;gap:4px">
-        <a href="/api/admin/projects/${r.project_id||pid}/refs/${r.filename}?token=${token()}" target="_blank" class="btn btn-sm">Open ↗</a>
-        <button class="btn btn-sm btn-danger" onclick="deleteAdminRef('${r.project_id||pid}','${r.filename}')">Delete</button>
+      <td style="white-space:nowrap">
+        <div style="display:flex;gap:4px">
+          ${r.format==='pdf'||r.format==='png'||r.format==='jpg'||r.format==='jpeg'?
+            `<button class="btn btn-sm btn-primary" onclick="openPdfModal('/api/admin/projects/${r.project_id||pid}/refs/${r.filename}/view?token=${token()}','${r.filename}','/api/admin/projects/${r.project_id||pid}/refs/${r.filename}?token=${token()}')">👁 Preview</button>`
+            :`<a href="/api/admin/projects/${r.project_id||pid}/refs/${r.filename}?token=${token()}" target="_blank" class="btn btn-sm">Open ↗</a>`}
+          <button class="btn btn-sm" onclick="archiveAdminRef('${r.project_id||pid}','${r.filename}')">📦 Archive</button>
+          <button class="btn btn-sm btn-danger" onclick="deleteAdminRef('${r.project_id||pid}','${r.filename}')">Delete</button>
+        </div>
       </td>
     </tr>`).join('')}
   </tbody></table></div>`;
@@ -1201,6 +1302,321 @@ async function uploadAdminRefs(files){
     const r=await fetch(`/api/admin/projects/${pid}/refs`,{method:'POST',headers:{'Authorization':'Bearer '+token()},body:fd}); const d=await r.json(); if(!r.ok) throw d.detail;
     fb.innerHTML=`<div class="success-bar">Uploaded: ${d.uploaded.map(u=>u.filename).join(', ')}</div>`; setTimeout(()=>fb.innerHTML='',6000); toast(`${d.uploaded.length} file(s) uploaded`); loadAdminRefDocs();
   }catch(e){ fb.innerHTML=`<div class="err-bar">${e}</div>`; toast(String(e),true); }
+}
+
+// ── PDF Preview Modal ─────────────────────────────────────────────────────────
+function openPdfModal(viewUrl, filename, downloadUrl){
+  document.getElementById('pdf-modal-title').textContent = filename;
+  document.getElementById('pdf-iframe').src = viewUrl;
+  document.getElementById('pdf-download-btn').href = downloadUrl;
+  document.getElementById('pdf-download-btn').download = filename;
+  document.getElementById('pdfModal').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+function closePdfModal(){
+  document.getElementById('pdfModal').classList.remove('open');
+  document.getElementById('pdf-iframe').src = 'about:blank';
+  document.body.style.overflow='';
+}
+document.addEventListener('keydown', e=>{ if(e.key==='Escape') closePdfModal(); });
+
+// ── Archive ref (move to backup) ──────────────────────────────────────────────
+async function archiveAdminRef(pid, filename){
+  if(!confirm(`Archive "${filename}"? It will be moved to Backups and removed from active docs.`)) return;
+  try{
+    await api('POST',`/api/admin/projects/${pid}/refs/${filename}/backup`);
+    toast('Archived to Backups'); loadAdminRefDocs();
+  }catch(e){ toast(e,true); }
+}
+async function archiveAdminSpec(pid, filename){
+  if(!confirm(`Archive "${filename}"? It will be moved to Backups.`)) return;
+  try{
+    await api('POST',`/api/admin/projects/${pid}/specs/${filename}/backup`);
+    toast('Archived to Backups'); loadAllSpecs();
+  }catch(e){ toast(e,true); }
+}
+
+// ── Permissions page ──────────────────────────────────────────────────────────
+let _permData = {};   // {specs:{fn:[uid,...]}, refs:{fn:[uid,...]}}
+let _permPid  = '';
+let _permSpecs= [];
+let _permRefs = [];
+
+async function initPermissions(){
+  const sel=document.getElementById('perm-project');
+  if(sel.options.length<=1){
+    allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});
+  }
+}
+
+async function loadPermissions(){
+  const pid=document.getElementById('perm-project').value;
+  const content=document.getElementById('perm-content');
+  const saveBtn=document.getElementById('perm-save-btn');
+  const legend=document.getElementById('perm-legend');
+  const loadEl=document.getElementById('perm-loading');
+  if(!pid){ content.style.display='none'; saveBtn.style.display='none'; legend.style.display='none'; return; }
+  _permPid=pid; loadEl.style.display=''; content.style.display='none';
+  try{
+    const [specs, refs, accessMeta, users] = await Promise.all([
+      api('GET',`/api/admin/projects/${pid}/specs`),
+      api('GET',`/api/admin/projects/${pid}/refs`),
+      api('GET',`/api/admin/projects/${pid}/access`),
+      api('GET','/api/admin/users'),
+    ]);
+    _permSpecs = specs||[]; _permRefs = refs||[];
+    _permData  = accessMeta||{specs:{},refs:{}};
+    const entityUsers = (users||[]).filter(u=>
+      u.role==='entity' && (
+        (u.projects||[]).includes(pid) ||
+        Object.keys(u.project_permissions||{}).includes(pid)
+      )
+    );
+    renderPermissionsGrid(entityUsers);
+    loadEl.style.display='none'; content.style.display='block';
+    saveBtn.style.display=''; legend.style.display='';
+  }catch(e){ loadEl.style.display='none'; toast(e,true); }
+}
+
+function renderPermissionsGrid(users){
+  const grid=document.getElementById('perm-user-grid');
+  if(!users.length){
+    grid.innerHTML='<div class="card"><div class="empty-state">No entity users have access to this project yet.<br>Assign the project to users in the Users tab first.</div></div>';
+    return;
+  }
+
+  // Build a per-document view: for each doc, which users are allowed?
+  // _permData.specs[filename] = [] means UNRESTRICTED (all see it)
+  //                           = [uid,...] means RESTRICTED to those users
+
+  // Render one card per document (spec), showing user checkboxes
+  let specCards = '';
+  if(_permSpecs.length){
+    specCards = _permSpecs.map(s=>{
+      const allowedUsers = _permData.specs[s.filename]||[];
+      const isRestricted = allowedUsers.length > 0;
+      const userRows = users.map(u=>{
+        const hasAccess = !isRestricted || allowedUsers.includes(u.id);
+        return `<div class="doc-check-item" onclick="toggleDocPerm('specs','${s.filename}','${u.id}',this)">
+          <input type="checkbox" id="sp-${u.id}-${s.filename.replace(/[^a-z0-9]/gi,'_')}"
+            ${hasAccess?'checked':''} onchange="void(0)">
+          <label for="sp-${u.id}-${s.filename.replace(/[^a-z0-9]/gi,'_')}">${u.username}</label>
+          <span class="badge" style="font-size:10px;background:${hasAccess?'#dcfce7;color:#15803d':'#fee2e2;color:#dc2626'}">${hasAccess?'can view':'no access'}</span>
+        </div>`;
+      }).join('');
+      return `<div class="perm-user-card">
+        <div class="perm-user-header">
+          <span style="font-size:16px">📄</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.base_name||s.stem}</div>
+            <div style="font-size:11px;color:#94a3b8">${s.filename} · v${s.version_num}</div>
+          </div>
+          <span class="badge" style="font-size:10px;${isRestricted?'background:#fee2e2;color:#dc2626':'background:#dcfce7;color:#15803d'}">${isRestricted?'Restricted':'All users'}</span>
+        </div>
+        <div class="perm-section-label">Who can see this document</div>
+        <div class="doc-check-list">${userRows}</div>
+      </div>`;
+    }).join('');
+  }else{
+    specCards = '<div class="card"><div class="empty-state" style="padding:1rem">No API contracts uploaded yet.</div></div>';
+  }
+
+  let refCards = '';
+  if(_permRefs.length){
+    refCards = _permRefs.map(r=>{
+      const allowedUsers = _permData.refs[r.filename]||[];
+      const isRestricted = allowedUsers.length > 0;
+      const userRows = users.map(u=>{
+        const hasAccess = !isRestricted || allowedUsers.includes(u.id);
+        return `<div class="doc-check-item" onclick="toggleDocPerm('refs','${r.filename}','${u.id}',this)">
+          <input type="checkbox" id="rf-${u.id}-${r.filename.replace(/[^a-z0-9]/gi,'_')}"
+            ${hasAccess?'checked':''} onchange="void(0)">
+          <label for="rf-${u.id}-${r.filename.replace(/[^a-z0-9]/gi,'_')}">${u.username}</label>
+          <span class="badge" style="font-size:10px;background:${hasAccess?'#dcfce7;color:#15803d':'#fee2e2;color:#dc2626'}">${hasAccess?'can view':'no access'}</span>
+        </div>`;
+      }).join('');
+      return `<div class="perm-user-card">
+        <div class="perm-user-header">
+          <span style="font-size:16px">📎</span>
+          <div style="flex:1;min-width:0">
+            <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.filename}</div>
+            <div style="font-size:11px;color:#94a3b8">${r.format.toUpperCase()}</div>
+          </div>
+          <span class="badge" style="font-size:10px;${isRestricted?'background:#fee2e2;color:#dc2626':'background:#dcfce7;color:#15803d'}">${isRestricted?'Restricted':'All users'}</span>
+        </div>
+        <div class="perm-section-label">Who can see this document</div>
+        <div class="doc-check-list">${userRows}</div>
+      </div>`;
+    }).join('');
+  }else{
+    refCards = '<div class="card"><div class="empty-state" style="padding:1rem">No reference docs uploaded yet.</div></div>';
+  }
+
+  grid.innerHTML=`
+    <div>
+      <div class="perm-section-label" style="font-size:12px;margin-bottom:8px">📄 API Contracts</div>
+      ${specCards}
+    </div>
+    <div>
+      <div class="perm-section-label" style="font-size:12px;margin-bottom:8px">📚 Reference Docs</div>
+      ${refCards}
+    </div>`;
+}
+
+function toggleDocPerm(kind, filename, userId, container){
+  // checkbox checked = user CAN see the document
+  const cb = container.querySelector('input[type=checkbox]');
+  cb.checked = !cb.checked;
+  const badge = container.querySelector('.badge');
+
+  const arr = _permData[kind][filename] || [];
+  const isCurrentlyRestricted = arr.length > 0;
+
+  if(cb.checked){
+    // Grant access: add to allowed list
+    if(!arr.length){
+      // Was unrestricted — now we're making it per-user restricted
+      // Start with all users checked except this one was already true; add them all then remove later
+      // Actually: was unrestricted → keep all others unrestricted → just don't add restriction yet
+      // Simplest: add this user. If list has all users = effectively unrestricted (we'll clean on save)
+      _permData[kind][filename] = [userId];
+      // Add all other users who are currently checked
+      const allCheckboxes = document.querySelectorAll(`input[id^="${kind==='specs'?'sp':'rf'}-"]`);
+      allCheckboxes.forEach(c=>{
+        const parts = c.id.split('-');
+        if(parts[1]!==userId && c.checked && c.id.includes(filename.replace(/[^a-z0-9]/gi,'_'))){
+          _permData[kind][filename].push(parts[1]);
+        }
+      });
+    }else{
+      if(!arr.includes(userId)) _permData[kind][filename] = [...arr, userId];
+    }
+    if(badge){ badge.textContent='can view'; badge.style.background='#dcfce7'; badge.style.color='#15803d'; }
+  }else{
+    // Revoke access: remove from allowed list
+    const newArr = arr.filter(x=>x!==userId);
+    _permData[kind][filename] = newArr;
+    // If this was unrestricted before, we need to create a restriction for all OTHER users
+    if(!isCurrentlyRestricted){
+      // Build list of all other currently-checked users
+      const allUsers = [...document.querySelectorAll(`.doc-check-item input[type=checkbox]`)];
+      // Get user IDs from all checked boxes for this filename
+      const otherChecked = [];
+      document.querySelectorAll(`input[id^="${kind==='specs'?'sp':'rf'}-"]`).forEach(c=>{
+        if(c.checked && c.id.includes(filename.replace(/[^a-z0-9]/gi,'_'))){
+          const uid = c.id.split('-')[1];
+          if(uid !== userId) otherChecked.push(uid);
+        }
+      });
+      _permData[kind][filename] = otherChecked;
+    }
+    if(badge){ badge.textContent='no access'; badge.style.background='#fee2e2'; badge.style.color='#dc2626'; }
+  }
+
+  // Update the "All users / Restricted" badge on the card header
+  const card = container.closest('.perm-user-card');
+  if(card){
+    const headerBadge = card.querySelector('.perm-user-header .badge');
+    const remaining = _permData[kind][filename]||[];
+    if(headerBadge){
+      const restricted = remaining.length > 0;
+      headerBadge.textContent = restricted ? 'Restricted' : 'All users';
+      headerBadge.style.background = restricted ? '#fee2e2' : '#dcfce7';
+      headerBadge.style.color = restricted ? '#dc2626' : '#15803d';
+    }
+  }
+}
+
+async function savePermissions(){
+  if(!_permPid) return;
+  // Send the full access map as-is
+  // [] = unrestricted (admin removed all restrictions)
+  // [uid,...] = restricted to those users only
+  const body = {
+    specs: Object.fromEntries(Object.entries(_permData.specs||{}).map(([k,v])=>[k,v])),
+    refs:  Object.fromEntries(Object.entries(_permData.refs||{}).map(([k,v])=>[k,v])),
+  };
+  try{
+    await api('PUT',`/api/admin/projects/${_permPid}/access`, body);
+    toast('Permissions saved!');
+    // Reload to show fresh state
+    await loadPermissions();
+  }catch(e){ toast(e,true); }
+}
+
+// ── Backups page ───────────────────────────────────────────────────────────────
+async function initBackups(){
+  const sel=document.getElementById('bak-project');
+  if(sel.options.length<=1){
+    allProjects.forEach(p=>{const o=document.createElement('option');o.value=p.id;o.textContent=p.name;sel.appendChild(o);});
+  }
+}
+
+async function loadBackups(){
+  const pid=document.getElementById('bak-project').value;
+  const specEl=document.getElementById('bak-specs-table');
+  const refEl=document.getElementById('bak-refs-table');
+  if(!pid){
+    specEl.innerHTML='<div class="empty-state" style="padding:2rem">Select a project</div>';
+    refEl.innerHTML='<div class="empty-state" style="padding:2rem">Select a project</div>';
+    return;
+  }
+  document.getElementById('bak-loading').style.display='';
+  const [specs,refs] = await Promise.all([
+    api('GET',`/api/admin/projects/${pid}/backups/specs`),
+    api('GET',`/api/admin/projects/${pid}/backups/refs`),
+  ]);
+  document.getElementById('bak-loading').style.display='none';
+  renderBackupTable(specEl, specs||[], pid, 'specs');
+  renderBackupTable(refEl,  refs||[],  pid, 'refs');
+}
+
+function renderBackupTable(el, items, pid, kind){
+  if(!items.length){ el.innerHTML='<div class="empty-state" style="padding:2rem">No archived files.</div>'; return; }
+  const isSpec = kind==='specs';
+  el.innerHTML=`<table style="width:100%;border-collapse:collapse;font-size:12px">
+    <thead><tr>
+      <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #f1f5f9;background:#fafbfc;color:#64748b;font-size:10px;text-transform:uppercase">Original file</th>
+      <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #f1f5f9;background:#fafbfc;color:#64748b;font-size:10px;text-transform:uppercase">Archived</th>
+      <th style="padding:6px 10px;text-align:left;border-bottom:1px solid #f1f5f9;background:#fafbfc;color:#64748b;font-size:10px;text-transform:uppercase">By</th>
+      <th style="padding:6px 10px;border-bottom:1px solid #f1f5f9;background:#fafbfc"></th>
+    </tr></thead>
+    <tbody>
+      ${items.map(b=>`<tr>
+        <td style="padding:6px 10px;border-bottom:1px solid #f8fafc">
+          <strong>${b.original_filename}</strong>
+          <br><span style="color:#94a3b8;font-size:10px">${b.backup_filename}</span>
+          ${b.version?`<span class="bak-badge" style="margin-left:4px">${b.version}</span>`:''}
+        </td>
+        <td style="padding:6px 10px;border-bottom:1px solid #f8fafc;color:#94a3b8;white-space:nowrap">${b.archived_at?new Date(b.archived_at).toLocaleString():''}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #f8fafc;color:#64748b">${b.archived_by||'—'}</td>
+        <td style="padding:6px 10px;border-bottom:1px solid #f8fafc">
+          <div style="display:flex;gap:4px">
+            <a href="/api/admin/projects/${pid}/backups/${kind}/${b.backup_filename}/download?token=${token()}" class="btn btn-sm" title="Download">⬇</a>
+            <button class="btn btn-sm btn-primary" onclick="restoreBackup('${pid}','${kind}','${b.backup_filename}')" title="Restore to active">↩ Restore</button>
+            <button class="btn btn-sm btn-danger" onclick="deleteBackup('${pid}','${kind}','${b.backup_filename}')" title="Delete permanently">🗑</button>
+          </div>
+        </td>
+      </tr>`).join('')}
+    </tbody>
+  </table>`;
+}
+
+async function restoreBackup(pid, kind, filename){
+  if(!confirm(`Restore "${filename}" back to active? It will appear in the project again.`)) return;
+  try{
+    const ep = kind==='specs'?'specs':'refs';
+    const r = await api('POST',`/api/admin/projects/${pid}/backups/${ep}/${filename}/restore`);
+    toast(`Restored as ${r?.restored_filename||filename}`); loadBackups();
+  }catch(e){ toast(e,true); }
+}
+
+async function deleteBackup(pid, kind, filename){
+  if(!confirm(`Permanently delete backup "${filename}"? This cannot be undone.`)) return;
+  try{
+    await api('DELETE',`/api/admin/projects/${pid}/backups/${kind}/${filename}`);
+    toast('Backup deleted'); loadBackups();
+  }catch(e){ toast(e,true); }
 }
 
 // init

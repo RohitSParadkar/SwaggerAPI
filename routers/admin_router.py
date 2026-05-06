@@ -381,3 +381,134 @@ def delete_ref(project_id: str, filename: str, admin=Depends(require_admin)):
         project_store.delete_ref(project_id, filename)
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
+
+
+# ── Serve ref with inline/attachment header (for PDF preview) ────────────────
+
+@router.get("/projects/{project_id}/refs/{filename}/view")
+def view_ref(project_id: str, filename: str, admin=Depends(require_admin)):
+    """Serve ref file inline (for browser PDF preview)."""
+    from fastapi.responses import FileResponse
+    import mimetypes
+    p = project_store.get_ref_path(project_id, filename)
+    if not p:
+        raise HTTPException(status_code=404, detail="Reference doc not found")
+    mt, _ = mimetypes.guess_type(filename)
+    return FileResponse(str(p), media_type=mt or "application/octet-stream",
+                        headers={"Content-Disposition": f"inline; filename=\"{filename}\""})
+
+
+# ── Backup: API contracts ─────────────────────────────────────────────────────
+
+@router.post("/projects/{project_id}/specs/{filename}/backup")
+def backup_spec(project_id: str, filename: str, admin=Depends(require_admin)):
+    if not project_store.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    try:
+        return project_store.backup_spec(project_id, filename, archived_by=admin["username"])
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/projects/{project_id}/backups/specs")
+def list_backup_specs(project_id: str, admin=Depends(require_admin)):
+    if not project_store.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project_store.list_backup_specs(project_id)
+
+@router.post("/projects/{project_id}/backups/specs/{backup_filename}/restore")
+def restore_spec(project_id: str, backup_filename: str, admin=Depends(require_admin)):
+    try:
+        return project_store.restore_spec(project_id, backup_filename)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.delete("/projects/{project_id}/backups/specs/{backup_filename}", status_code=204)
+def delete_backup_spec(project_id: str, backup_filename: str, admin=Depends(require_admin)):
+    try:
+        project_store.delete_backup_spec(project_id, backup_filename)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/projects/{project_id}/backups/specs/{backup_filename}/download")
+def download_backup_spec(project_id: str, backup_filename: str, admin=Depends(require_admin)):
+    from fastapi.responses import FileResponse
+    p = project_store.get_backup_spec_path(project_id, backup_filename)
+    if not p:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    return FileResponse(str(p), filename=backup_filename)
+
+
+# ── Backup: Reference docs ────────────────────────────────────────────────────
+
+@router.post("/projects/{project_id}/refs/{filename}/backup")
+def backup_ref(project_id: str, filename: str, admin=Depends(require_admin)):
+    if not project_store.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    try:
+        return project_store.backup_ref(project_id, filename, archived_by=admin["username"])
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/projects/{project_id}/backups/refs")
+def list_backup_refs(project_id: str, admin=Depends(require_admin)):
+    if not project_store.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project_store.list_backup_refs(project_id)
+
+@router.post("/projects/{project_id}/backups/refs/{backup_filename}/restore")
+def restore_ref_backup(project_id: str, backup_filename: str, admin=Depends(require_admin)):
+    try:
+        return project_store.restore_ref(project_id, backup_filename)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.delete("/projects/{project_id}/backups/refs/{backup_filename}", status_code=204)
+def delete_backup_ref(project_id: str, backup_filename: str, admin=Depends(require_admin)):
+    try:
+        project_store.delete_backup_ref(project_id, backup_filename)
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
+@router.get("/projects/{project_id}/backups/refs/{backup_filename}/download")
+def download_backup_ref(project_id: str, backup_filename: str, admin=Depends(require_admin)):
+    from fastapi.responses import FileResponse
+    p = project_store.get_backup_ref_path(project_id, backup_filename)
+    if not p:
+        raise HTTPException(status_code=404, detail="Backup not found")
+    return FileResponse(str(p), filename=backup_filename)
+
+
+# ── Document-level access permissions ────────────────────────────────────────
+
+@router.get("/projects/{project_id}/access")
+def get_access(project_id: str, admin=Depends(require_admin)):
+    """Get full document-level access map for a project."""
+    if not project_store.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+    return project_store.get_access_meta(project_id)
+
+@router.put("/projects/{project_id}/access")
+def set_access(project_id: str, body: dict, admin=Depends(require_admin)):
+    """
+    Full replace of the document-level access map.
+    Body: {"specs": {"filename": ["uid",...]}, "refs": {"filename": ["uid",...]}}
+    Empty list [] = unrestricted (all project users can see it).
+    Files absent from body are also set to unrestricted.
+    """
+    if not project_store.get_project(project_id):
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Build a clean access map — start from scratch
+    new_access = {"specs": {}, "refs": {}}
+
+    for kind in ("specs", "refs"):
+        for filename, user_ids in (body.get(kind) or {}).items():
+            clean_ids = [uid for uid in (user_ids or []) if uid]
+            if clean_ids:
+                new_access[kind][filename] = clean_ids
+            # empty list = unrestricted = not stored (omitted from map)
+
+    # Save the entire map at once (atomic replace)
+    from project_store import _save_access
+    _save_access(project_id, new_access)
+    return project_store.get_access_meta(project_id)
