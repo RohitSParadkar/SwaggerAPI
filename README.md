@@ -38,17 +38,6 @@ uvicorn main:app --reload --port 8000
 | `http://localhost:8000/api-docs` | FastAPI interactive API docs |
 
 ---
-
-## Default admin login
-
-Set in `.env`:
-```
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=Admin@1234
-```
-
----
-
 ## Workflow
 
 ### As Admin:
